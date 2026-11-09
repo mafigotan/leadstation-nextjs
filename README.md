@@ -13,7 +13,7 @@ Next.js 15 (App Router, Server Actions) · Supabase (Auth, Postgres, RLS) · Tai
 ## 시작하기
 
 1. [Supabase](https://supabase.com)에서 프로젝트를 만들어요.
-2. Supabase 대시보드의 **SQL Editor**에서 `supabase/migrations/0001_lead_collector.sql` 내용을 실행해요.
+2. `supabase/migrations/0001_lead_collector.sql` 파일을 열어 **안의 SQL 전체를 복사**한 뒤, Supabase 대시보드의 **SQL Editor**에 붙여넣고 Run을 눌러요. (파일 경로를 입력하는 게 아니에요.)
 3. **Authentication > URL Configuration**에서 Site URL을 앱 주소로, Redirect URLs에 `<앱 주소>/auth/callback`을 추가해요.
 4. `.env.example`을 `.env.local`로 복사하고 값을 채워요.
    - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Supabase > Project Settings > API
