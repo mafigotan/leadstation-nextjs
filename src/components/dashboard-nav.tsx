@@ -6,12 +6,14 @@ import { usePathname } from "next/navigation";
 const items = [
   { href: "/dashboard/pages", label: "프로모션 페이지" },
   { href: "/dashboard/leads", label: "리드 관리" },
+  { href: "/dashboard/newsletters", label: "AI 뉴스레터" },
+  { href: "/dashboard/recipients", label: "수신자" },
 ];
 
 export function DashboardNav() {
   const pathname = usePathname();
   return (
-    <nav className="flex gap-1">
+    <nav className="flex flex-wrap gap-1">
       {items.map((item) => {
         const active = pathname.startsWith(item.href);
         return (

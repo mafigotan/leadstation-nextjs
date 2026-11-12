@@ -1,4 +1,5 @@
 import { NewPageForm } from "./new-page-form";
+export const maxDuration = 60;
 
 export const metadata = { title: "새 프로모션 페이지 | LEADstation" };
 
