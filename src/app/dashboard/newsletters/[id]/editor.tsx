@@ -370,7 +370,7 @@ function BlockFields({
   const hasImage = b.type === "hero" || b.type === "image";
   return (
     <div className="space-y-3">
-      {hasImage && <ImageField userId={userId} value={b.image_url} keyword={b.image_keyword} onChange={(url) => onChange({ image_url: url })} />}
+      {hasImage && <ImageField userId={userId} value={b.image_url} keyword={b.image_keyword} context={b.heading} onChange={(url) => onChange({ image_url: url })} />}
       {hasHeading && (
         <input value={b.heading} onChange={(e) => onChange({ heading: e.target.value })} className="input" placeholder={b.type === "hero" ? "대표 제목" : "제목"} />
       )}
@@ -399,7 +399,7 @@ function BlockFields({
                   삭제
                 </button>
               </div>
-              <ImageField userId={userId} value={it.image_url} keyword={it.image_keyword} onChange={(url) => onItem(i, { image_url: url })} compact />
+              <ImageField userId={userId} value={it.image_url} keyword={it.image_keyword} context={it.title} onChange={(url) => onItem(i, { image_url: url })} compact />
               <input value={it.title} onChange={(e) => onItem(i, { title: e.target.value })} className="input" placeholder="제목" />
               {b.type === "cards" && (
                 <textarea value={it.text} onChange={(e) => onItem(i, { text: e.target.value })} rows={2} className="input" placeholder="설명" />

@@ -2,6 +2,15 @@
 
 import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { generateAiImage } from "../actions";
+
+const STYLES = [
+  ["photo", "사진"],
+  ["illustration", "일러스트"],
+  ["cartoon", "만화"],
+  ["infographic", "인포그래픽"],
+] as const;
+const STYLE_KEY = "ls-ai-image-style";
 
 export function ImageField({
   userId,
@@ -9,13 +18,45 @@ export function ImageField({
   keyword,
   onChange,
   compact,
+  context = "",
 }: {
   userId: string;
   value: string;
   keyword: string;
   onChange: (url: string) => void;
   compact?: boolean;
+  context?: string;
 }) {
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiText, setAiText] = useState("");
+  const [aiStyle, setAiStyle] = useState("photo");
+  const [generating, setGenerating] = useState(false);
+
+  function openAi() {
+    setError("");
+    setAiText((t) => t || [context, keyword].filter(Boolean).join(", "));
+    try {
+      const saved = localStorage.getItem(STYLE_KEY);
+      if (saved) setAiStyle(saved);
+    } catch {}
+    setAiOpen((o) => !o);
+  }
+
+  async function generate() {
+    setError("");
+    setGenerating(true);
+    try {
+      localStorage.setItem(STYLE_KEY, aiStyle);
+    } catch {}
+    const res = await generateAiImage(aiText, aiStyle, !compact);
+    setGenerating(false);
+    if ("error" in res && res.error) return setError(res.error);
+    if ("url" in res && res.url) {
+      onChange(res.url);
+      setAiOpen(false);
+    }
+  }
+
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -54,8 +95,30 @@ export function ImageField({
         <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className="btn-secondary shrink-0 px-3">
           {uploading ? "..." : "업로드"}
         </button>
+        <button type="button" onClick={openAi} disabled={generating} className="btn-secondary shrink-0 px-3">
+          AI로 생성
+        </button>
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
       </div>
+      {aiOpen && (
+        <div className="space-y-2 rounded-lg bg-slate-50 p-3">
+          <textarea
+            value={aiText}
+            onChange={(e) => setAiText(e.target.value)}
+            rows={2}
+            className="input"
+            placeholder="어떤 이미지를 만들지 설명해 주세요. 예: 눈 내리는 창가의 따뜻한 머그컵과 담요"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <select value={aiStyle} onChange={(e) => setAiStyle(e.target.value)} className="input w-auto py-1">
+              {STYLES.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+            <button type="button" onClick={generate} disabled={generating || !aiText.trim()} className="btn-primary py-1.5">
+              {generating ? "그리는 중... (최대 1분)" : "이미지 만들기"}
+            </button>
+          </div>
+        </div>
+      )}
       {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
   );

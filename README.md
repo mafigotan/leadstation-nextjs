@@ -9,7 +9,7 @@ AI Powered Marketing Platform. **Lead Collector**와 **AI 뉴스레터**가 들�
 ### AI 뉴스레터
 
 - 이메일 내용과 명령 프롬프트로 Claude가 블록 단위 뉴스레터 작성, 기존 본문 AI 수정, 이전 본문 되돌리기
-- 블록 에디터(대표 이미지, 소제목, 본문, 이미지, 카드, 썸네일 리스트, 버튼, 구분선)와 실시간 미리보기, 이미지 업로드
+- 블록 에디터(대표 이미지, 소제목, 본문, 이미지, 카드, 썸네일 리스트, 버튼, 구분선)와 실시간 미리보기, 이미지 업로드, AI 이미지 생성(사진·일러스트·만화·인포그래픽)
 - 템플릿 4종(카드, 모던, 미니멀, 텍스트), 톤 4종, 수신자 이름 자동 인사말
 - 수신자·그룹 관리, CSV 가져오기(엑셀 한글 CSV 지원), Lead Collector 리드 가져오기(마케팅 동의자만)
 - 테스트 메일, 전체·그룹·직접 입력 발송, 예약 발송, 발송 진행률, 실패 재발송
@@ -43,6 +43,10 @@ npm run dev
    - `RESEND_API_KEY`: Resend API 키 (Sensitive)
    - `MAIL_FROM_ADDRESS`: 인증한 도메인의 보내는 주소 (예: `newsletter@leadstation.kr`)
 4. Redeploy 해요.
+
+### AI 이미지 생성 (선택)
+
+이미지 칸의 **AI로 생성** 버튼은 OpenAI 이미지 API로 이미지를 만들어요. Vercel 환경 변수에 `OPENAI_API_KEY`(Sensitive)를 넣고 Redeploy 하면 돼요. 기본 모델은 `gpt-image-2`이고, 쓸 수 없으면 `gpt-image-1`을 써요. 모델을 바꾸려면 `OPENAI_IMAGE_MODEL`을 지정하세요.
 
 ### 예약 발송 (선택)
 
@@ -88,4 +92,4 @@ supabase/migrations         DB 스키마와 RLS 정책
 
 - 요금제와 결제, 유저별 페이지
 - Neo AI Writer
-- 뉴스레터: AI 이미지 생성, 사용량 통계와 월 한도
+- 뉴스레터: 사용량 통계와 월 한도
