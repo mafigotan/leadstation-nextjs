@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { siteUrl } from "@/lib/slug";
 import { personalize, renderNewsletter } from "./render";
-import { sendBatch } from "./mailer";
+import { mailProvider, sendBatch } from "./mailer";
 import type { Newsletter, SenderSettings } from "./types";
 
 export type AudienceSpec =
@@ -185,8 +185,7 @@ export async function processCampaign(supabase: SupabaseClient, campaignId: stri
       .limit(100);
     if (!batch?.length) break;
 
-    const ids = batch.map((r) => r.id);
-    const error = await sendBatch(
+    const errors = await sendBatch(
       batch.map((r) => {
         const unsub = r.unsub_token ? unsubscribeUrl(r.unsub_token) : `${siteUrl()}/`;
         return {
@@ -198,18 +197,26 @@ export async function processCampaign(supabase: SupabaseClient, campaignId: stri
           unsubscribeUrl: r.unsub_token ? `${siteUrl()}/api/unsubscribe/${r.unsub_token}` : undefined,
         };
       }),
-    ).catch((e: Error) => e.message);
+    ).catch((e: Error) => batch.map(() => e.message));
 
     const now = new Date().toISOString();
-    if (error) {
-      await supabase.from("send_logs").update({ status: "failed", error: error.slice(0, 250), sent_at: now }).in("id", ids);
-    } else {
-      await supabase.from("send_logs").update({ status: "sent", sent_at: now }).in("id", ids);
-      const recipientIds = batch.map((r) => r.recipient_id).filter(Boolean);
+    const sentIds = batch.filter((_, i) => !errors[i]).map((r) => r.id);
+    if (sentIds.length) {
+      await supabase.from("send_logs").update({ status: "sent", sent_at: now }).in("id", sentIds);
+      const recipientIds = batch.filter((_, i) => !errors[i]).map((r) => r.recipient_id).filter(Boolean);
       if (recipientIds.length) await supabase.from("recipients").update({ last_sent_at: now }).in("id", recipientIds);
     }
-    // Stay under the provider's default rate limit (2 requests per second).
-    await new Promise((r) => setTimeout(r, 600));
+    // Group failures by message so each distinct error is one update.
+    const failed = new Map<string, number[]>();
+    batch.forEach((r, i) => {
+      const err = errors[i];
+      if (err) failed.set(err, [...(failed.get(err) ?? []), r.id]);
+    });
+    for (const [err, ids] of failed) {
+      await supabase.from("send_logs").update({ status: "failed", error: err.slice(0, 250), sent_at: now }).in("id", ids);
+    }
+    // Stay under Resend's default rate limit (2 requests per second).
+    if (mailProvider() === "resend") await new Promise((r) => setTimeout(r, 600));
   }
 
   const counts = await refreshCounts(supabase, campaignId);

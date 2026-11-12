@@ -12,7 +12,7 @@ AI Powered Marketing Platform. **Lead Collector**와 **AI 뉴스레터**가 들�
 - 블록 에디터(대표 이미지, 소제목, 본문, 이미지, 카드, 썸네일 리스트, 버튼, 구분선)와 실시간 미리보기, 이미지 업로드, AI 이미지 생성(사진·일러스트·만화·인포그래픽)
 - 템플릿 4종(카드, 모던, 미니멀, 텍스트), 톤 4종, 수신자 이름 자동 인사말
 - 수신자·그룹 관리, CSV 가져오기(엑셀 한글 CSV 지원), Lead Collector 리드 가져오기(마케팅 동의자만)
-- 테스트 메일, 전체·그룹·직접 입력 발송, 예약 발송, 발송 진행률, 실패 재발송
+- 테스트 메일, 전체·그룹·직접 입력 발송, 예약 발송, 발송 진행률, 실패 재발송 (SendGrid, SMTP, Resend 지원)
 - 수신거부 링크와 원클릭 수신거부 헤더, 발신 정보(보내는 사람, 회신 주소, 푸터, 로고, 강조 색, 브랜드 정보)
 
 ## 기술 스택
@@ -38,10 +38,12 @@ npm run dev
 ## AI 뉴스레터 설정
 
 1. `supabase/migrations/0002_newsletter.sql` 파일 안의 SQL 전체를 Supabase **SQL Editor**에 붙여넣고 Run 해요.
-2. [Resend](https://resend.com)에 가입하고 **Domains**에서 발송 도메인(예: `leadstation.kr`)을 추가한 뒤, 안내되는 DNS 레코드를 도메인 업체에 등록해서 인증해요.
-3. Resend **API Keys**에서 키를 만들고 Vercel 환경 변수에 넣어요.
-   - `RESEND_API_KEY`: Resend API 키 (Sensitive)
-   - `MAIL_FROM_ADDRESS`: 인증한 도메인의 보내는 주소 (예: `newsletter@leadstation.kr`)
+2. 메일 발송 업체를 하나 정해서 Vercel 환경 변수에 넣어요. 보내는 주소 `MAIL_FROM_ADDRESS`(예: `newsletter@leadstation.kr`)는 공통으로 필요하고, 발송 업체에서 인증된 주소여야 해요.
+   - **SendGrid**: `SENDGRID_API_KEY` (Sensitive). SendGrid **Settings > Sender Authentication**에서 도메인을 인증해요.
+   - **SMTP**: `SMTP_HOST`, `SMTP_PORT`(기본 587, 465면 SSL), `SMTP_USER`, `SMTP_PASS`
+   - **Resend**: `RESEND_API_KEY`
+   여러 개를 넣었다면 `MAIL_PROVIDER`(`sendgrid`, `smtp`, `resend`)로 고를 수 있어요.
+3. 발신 정보 메뉴에서 보내는 사람 이름과 푸터를 입력해요.
 4. Redeploy 해요.
 
 ### AI 이미지 생성 (선택)
@@ -84,7 +86,7 @@ src/app/dashboard/newsletters 뉴스레터 목록, AI 블록 에디터, 발송, 
 src/app/dashboard/recipients 수신자, 그룹, CSV·리드 가져오기
 src/app/u/[token]           수신거부 페이지
 src/lib/ai/generate-page.ts Claude 구조화 출력으로 페이지 문구 생성
-src/lib/newsletter          뉴스레터 렌더러, AI, 발송 대기열, 메일러(Resend)
+src/lib/newsletter          뉴스레터 렌더러, AI, 이미지 AI, 발송 대기열, 메일러(SendGrid·SMTP·Resend)
 supabase/migrations         DB 스키마와 RLS 정책
 ```
 
