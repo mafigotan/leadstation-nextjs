@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const items = [
+  { href: "/dashboard", label: "대시보드" },
   { href: "/dashboard/pages", label: "프로모션 페이지" },
   { href: "/dashboard/leads", label: "리드 관리" },
   { href: "/dashboard/writer", label: "AI 글쓰기" },
@@ -18,7 +19,7 @@ export function DashboardNav() {
   return (
     <nav className="flex flex-wrap gap-1">
       {items.map((item) => {
-        const active = pathname.startsWith(item.href);
+        const active = item.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(item.href);
         return (
           <Link
             key={item.href}

@@ -26,6 +26,7 @@ export async function completeProfile(_: FormState, formData: FormData): Promise
   const info = await readPersonalInfo(formData);
   if ("error" in info) return { error: info.error };
 
+  const join = !memberships.length && formData.get("mode") === "join";
   let handle = "";
   if (!memberships.length) {
     handle = String(formData.get("handle") ?? "").trim().toLowerCase();
@@ -37,6 +38,18 @@ export async function completeProfile(_: FormState, formData: FormData): Promise
   if (error) {
     console.error("save profile failed", error);
     return { error: "저장하지 못했어요. 잠시 후 다시 시도해주세요." };
+  }
+
+  if (join) {
+    const { error: joinError } = await supabase.rpc("request_site_join", { p_handle: handle });
+    if (joinError) {
+      if (joinError.code === "P0002") return { error: "그 주소의 사이트가 없어요. 주소를 다시 확인해주세요." };
+      if (joinError.code === "P0003") redirect("/dashboard");
+      console.error("join request failed", joinError);
+      return { error: "신청하지 못했어요. 잠시 후 다시 시도해주세요." };
+    }
+    revalidatePath("/welcome");
+    return { ok: true, message: "신청했어요. 사이트 관리자가 승인하면 바로 이용할 수 있어요." };
   }
 
   if (!memberships.length) {
@@ -52,6 +65,13 @@ export async function completeProfile(_: FormState, formData: FormData): Promise
 }
 
 /** Live check for a site address. `currentSiteId` lets a site keep its own address. */
+/** Withdraws a pending request to join a site. */
+export async function cancelJoinRequest(id: string) {
+  const { supabase } = await requireUser();
+  await supabase.from("site_join_requests").delete().eq("id", id);
+  revalidatePath("/welcome");
+}
+
 export async function checkHandle(raw: string, currentSiteId?: string) {
   const handle = raw.trim().toLowerCase();
   const invalid = validateHandle(handle);
