@@ -29,3 +29,14 @@ body {
     @apply rounded-xl border border-slate-200 bg-white shadow-sm;
   }
 }
+
+/* Inline editing in the visual editors */
+.ls-editable:empty::before {
+  content: attr(data-ph);
+  color: #94a3b8;
+  pointer-events: none;
+}
+.ls-editable:focus {
+  box-shadow: 0 0 0 2px rgb(99 102 241 / 0.25);
+  border-radius: 4px;
+}

@@ -1,31 +1,129 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { Editable, focusEd } from "./editable";
 
 /**
  * Shared visual editor: element palette on the left, near-final draft on the right.
- * Click an element to open its detail menu below it; drag elements from the palette
- * (or drag the ⋮⋮ handle of an element) onto the drop lines to add or move.
+ * Text in the draft is edited in place. Clicking an element shows its menu above it
+ * (move, duplicate, delete and element options). Images open a modal.
+ * Elements are added by dragging from the palette onto the blue lines.
  */
 
 export type PaletteItem = { type: string; label: string; icon: string; hint?: string };
 type Drag = { kind: "new"; type: string } | { kind: "move"; id: string } | null;
 
-type Ctx = {
-  selected: string | null;
-  select: (id: string | null, sub?: string | null) => void;
-  sub: string | null;
+export type EdOpts = {
+  as?: string;
+  className?: string;
+  placeholder?: string;
+  rich?: boolean;
+  single?: boolean;
+  style?: React.CSSProperties;
+  /** For string lists: Enter adds an item after this one, Backspace on empty removes it. */
+  list?: boolean;
 };
-const SelCtx = createContext<Ctx>({ selected: null, select: () => {}, sub: null });
+/** Renders an inline-editable text for a field path of the element, e.g. "text", "items.2", "rows.1.0", "items.0.title". */
+export type Ed = (path: string, value: string, opts?: EdOpts) => ReactNode;
+
+export type BlockCtx = { onImage: (key: string) => void; ed: Ed; selected: boolean };
+
+type Ctx = { selected: string | null; select: (id: string | null, sub?: string | null) => void };
+const SelCtx = createContext<Ctx>({ selected: null, select: () => {} });
 export const useSelection = () => useContext(SelCtx);
+
+function setPath<T>(obj: T, path: string, value: unknown): T {
+  const keys = path.split(".");
+  const clone = (o: unknown) => (Array.isArray(o) ? [...o] : { ...(o as object) });
+  const root = clone(obj) as Record<string, unknown>;
+  let cur: Record<string, unknown> = root;
+  for (let i = 0; i < keys.length - 1; i++) {
+    cur[keys[i]] = clone(cur[keys[i]] ?? (/^\d+$/.test(keys[i + 1]) ? [] : {}));
+    cur = cur[keys[i]] as Record<string, unknown>;
+  }
+  cur[keys[keys.length - 1]] = value;
+  return root as T;
+}
+
+function getPath(obj: unknown, path: string): unknown {
+  return path.split(".").reduce<unknown>((o, k) => (o == null ? o : (o as Record<string, unknown>)[k]), obj);
+}
+
+/** Inline editor factory bound to one element. */
+export function makeEd<B extends { id: string }>(b: B, onChange: (next: B) => void): Ed {
+  return function edField(path, value, opts = {}) {
+    const key = `${b.id}:${path}`;
+    let onEnter: (() => void) | undefined;
+    let onRemoveEmpty: (() => void) | undefined;
+    if (opts.list) {
+      const parts = path.split(".");
+      const index = Number(parts.pop());
+      const arrPath = parts.join(".");
+      const arr = (getPath(b, arrPath) as string[]) ?? [];
+      onEnter = () => {
+        const next = [...arr];
+        next.splice(index + 1, 0, "");
+        onChange(setPath(b, arrPath, next));
+        focusEd(`${b.id}:${arrPath}.${index + 1}`);
+      };
+      onRemoveEmpty = () => {
+        if (arr.length <= 1) return;
+        onChange(setPath(b, arrPath, arr.filter((_, i) => i !== index)));
+        if (index > 0) focusEd(`${b.id}:${arrPath}.${index - 1}`);
+      };
+    }
+    return (
+      <Editable
+        key={key}
+        edKey={key}
+        value={value}
+        as={opts.as}
+        className={opts.className}
+        placeholder={opts.placeholder}
+        rich={opts.rich}
+        single={opts.single}
+        style={opts.style}
+        onEnter={onEnter}
+        onRemoveEmpty={onRemoveEmpty}
+        onChange={(v) => onChange(setPath(b, path, v))}
+      />
+    );
+  };
+}
+
+export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
+      <div
+        data-ve-panel
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 text-left text-sm text-slate-800 shadow-2xl"
+        style={{ fontFamily: "var(--font-sans)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-bold">{title}</h2>
+          <button type="button" onClick={onClose} className="rounded-md px-2 py-1 text-slate-500 hover:bg-slate-100" aria-label="닫기">✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export function VisualEditor<B extends { id: string }>({
   blocks,
   onChange,
   palette,
+  labels,
   create,
   renderBlock,
-  renderPanel,
+  renderTools,
+  renderImage,
   settings,
   settingsLabel = "설정",
   top,
@@ -35,20 +133,21 @@ export function VisualEditor<B extends { id: string }>({
   emptyText = "왼쪽 요소를 끌어다 여기에 놓으세요.",
   initialTab = "blocks",
   selected,
-  sub,
   onSelect,
 }: {
   blocks: B[];
   onChange: (blocks: B[]) => void;
   palette: PaletteItem[];
+  /** Element name shown in its menu. */
+  labels: (b: B) => string;
   create: (type: string) => B;
-  /** Renders one element as it will look. onImage(key) opens the image menu for that image. */
-  renderBlock: (b: B, i: number, onImage: (key: string) => void) => ReactNode;
-  /** Detail menu of the selected element. sub is the image key that was clicked, if any. */
-  renderPanel: (b: B, i: number, sub: string | null, update: (patch: Partial<B>) => void, move: (d: -1 | 1) => void) => ReactNode;
+  renderBlock: (b: B, i: number, ctx: BlockCtx) => ReactNode;
+  /** Extra controls in the element menu (style, rows, links ...). */
+  renderTools?: (b: B, update: (patch: Partial<B>) => void, openImage: (key: string) => void) => ReactNode;
+  /** Content of the image modal for image `key` of the element. */
+  renderImage?: (b: B, key: string, update: (patch: Partial<B>) => void, close: () => void) => ReactNode;
   settings?: ReactNode;
   settingsLabel?: string;
-  /** Fixed areas above and below the elements (title, footer ...). Use <Selectable> inside. */
   top?: ReactNode;
   bottom?: ReactNode;
   canvasClassName?: string;
@@ -56,12 +155,12 @@ export function VisualEditor<B extends { id: string }>({
   emptyText?: string;
   initialTab?: "blocks" | "settings";
   selected: string | null;
-  sub: string | null;
-  onSelect: (id: string | null, sub?: string | null) => void;
+  onSelect: (id: string | null) => void;
 }) {
   const [tab, setTab] = useState<"blocks" | "settings">(initialTab);
   const [drag, setDrag] = useState<Drag>(null);
   const [over, setOver] = useState<number | null>(null);
+  const [image, setImage] = useState<{ id: string; key: string } | null>(null);
 
   const insert = (index: number, d: NonNullable<Drag>) => {
     if (d.kind === "new") {
@@ -78,6 +177,7 @@ export function VisualEditor<B extends { id: string }>({
     }
   };
 
+  const replace = (next: B) => onChange(blocks.map((b) => (b.id === next.id ? next : b)));
   const update = (id: string, patch: Partial<B>) => onChange(blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)));
   const move = (i: number, d: -1 | 1) => {
     const j = i + d;
@@ -92,12 +192,28 @@ export function VisualEditor<B extends { id: string }>({
     insert(idx >= 0 ? idx + 1 : blocks.length, { kind: "new", type });
   };
 
-  // Esc closes the menu.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onSelect(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !image) {
+        (document.activeElement as HTMLElement | null)?.blur?.();
+        onSelect(null);
+      }
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onSelect]);
+  }, [onSelect, image]);
+
+  // Clicking anywhere outside the elements and menus closes the menu (text edits stay).
+  useEffect(() => {
+    if (!selected) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t || t.closest("[data-ve-frame],[data-ve-panel],[data-ve-aside]")) return;
+      onSelect(null);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [selected, onSelect]);
 
   const zone = (index: number) => (
     <DropZone
@@ -114,10 +230,12 @@ export function VisualEditor<B extends { id: string }>({
     />
   );
 
+  const imgBlock = image ? blocks.find((b) => b.id === image.id) : undefined;
+
   return (
-    <SelCtx.Provider value={{ selected, select: onSelect, sub }}>
+    <SelCtx.Provider value={{ selected, select: onSelect }}>
       <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
-        <aside className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto">
+        <aside data-ve-aside className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto">
           {settings && (
             <div className="mb-3 flex rounded-lg border border-slate-200 bg-white p-0.5 text-sm">
               {(["blocks", "settings"] as const).map((t) => (
@@ -129,7 +247,7 @@ export function VisualEditor<B extends { id: string }>({
           )}
           {tab === "blocks" || !settings ? (
             <div className="card p-3">
-              <p className="mb-2 px-1 text-xs text-slate-500">끌어서 본문에 놓거나, 눌러서 선택한 요소 아래에 추가해요.</p>
+              <p className="mb-2 px-1 text-xs text-slate-500">끌어서 본문의 파란 선에 놓거나, 눌러서 선택한 요소 아래에 추가해요.</p>
               <div className="space-y-1.5">
                 {palette.map((p) => (
                   <button
@@ -163,7 +281,7 @@ export function VisualEditor<B extends { id: string }>({
         </aside>
 
         <div
-          className="min-w-0"
+          className="min-w-0 pt-12"
           onClick={() => onSelect(null)}
           onClickCapture={(e) => {
             // Links in the draft do not navigate while editing.
@@ -177,50 +295,62 @@ export function VisualEditor<B extends { id: string }>({
             {blocks.length === 0 && (
               <div className="rounded-xl border-2 border-dashed border-slate-200 p-10 text-center text-sm text-slate-400">{emptyText}</div>
             )}
-            {blocks.map((b, i) => [
-              <BlockFrame
-                key={b.id}
-                id={b.id}
-                onDragStart={() => setDrag({ kind: "move", id: b.id })}
-                onDragEnd={() => {
-                  setDrag(null);
-                  setOver(null);
-                }}
-                toolbar={
-                  <>
-                    <ToolBtn label="위로" onClick={() => move(i, -1)}>↑</ToolBtn>
-                    <ToolBtn label="아래로" onClick={() => move(i, 1)}>↓</ToolBtn>
-                    <ToolBtn
-                      label="복제"
-                      onClick={() => {
-                        const copy = { ...structuredClone(b), id: Math.random().toString(36).slice(2, 10) };
-                        onChange([...blocks.slice(0, i + 1), copy, ...blocks.slice(i + 1)]);
-                      }}
-                    >
-                      ⧉
-                    </ToolBtn>
-                    <ToolBtn
-                      label="삭제"
-                      danger
-                      onClick={() => {
-                        onChange(blocks.filter((x) => x.id !== b.id));
-                        onSelect(null);
-                      }}
-                    >
-                      ✕
-                    </ToolBtn>
-                  </>
-                }
-                panel={renderPanel(b, i, sub, (p) => update(b.id, p), (d) => move(i, d))}
-              >
-                {renderBlock(b, i, (key) => onSelect(b.id, key))}
-              </BlockFrame>,
-              zone(i + 1),
-            ])}
+            {blocks.map((b, i) => {
+              const openImage = (key: string) => {
+                onSelect(b.id);
+                setImage({ id: b.id, key });
+              };
+              return [
+                <Frame
+                  key={b.id}
+                  id={b.id}
+                  label={labels(b)}
+                  onDragStart={() => setDrag({ kind: "move", id: b.id })}
+                  onDragEnd={() => {
+                    setDrag(null);
+                    setOver(null);
+                  }}
+                  actions={
+                    <>
+                      <ToolBtn label="위로" onClick={() => move(i, -1)}>↑</ToolBtn>
+                      <ToolBtn label="아래로" onClick={() => move(i, 1)}>↓</ToolBtn>
+                      <ToolBtn
+                        label="복제"
+                        onClick={() => {
+                          const copy = { ...structuredClone(b), id: Math.random().toString(36).slice(2, 10) };
+                          onChange([...blocks.slice(0, i + 1), copy, ...blocks.slice(i + 1)]);
+                        }}
+                      >
+                        ⧉ 복제
+                      </ToolBtn>
+                      <ToolBtn
+                        label="삭제"
+                        danger
+                        onClick={() => {
+                          onChange(blocks.filter((x) => x.id !== b.id));
+                          onSelect(null);
+                        }}
+                      >
+                        ✕ 삭제
+                      </ToolBtn>
+                    </>
+                  }
+                  tools={renderTools?.(b, (p) => update(b.id, p), openImage)}
+                >
+                  {renderBlock(b, i, { onImage: openImage, ed: makeEd(b, replace), selected: selected === b.id })}
+                </Frame>,
+                zone(i + 1),
+              ];
+            })}
             {bottom}
           </div>
         </div>
       </div>
+      {image && imgBlock && renderImage && (
+        <Modal title="이미지" onClose={() => setImage(null)}>
+          {renderImage(imgBlock, image.key, (p) => update(imgBlock.id, p), () => setImage(null))}
+        </Modal>
+      )}
     </SelCtx.Provider>
   );
 }
@@ -249,121 +379,130 @@ function DropZone({ active, over, onOver, onLeave, onDrop }: { active: boolean; 
   );
 }
 
-function ToolBtn({ label, onClick, children, danger }: { label: string; onClick: () => void; children: ReactNode; danger?: boolean }) {
+export function ToolBtn({ label, onClick, children, danger, active }: { label: string; onClick: () => void; children: ReactNode; danger?: boolean; active?: boolean }) {
   return (
     <button
       type="button"
       title={label}
       aria-label={label}
+      onMouseDown={(e) => e.preventDefault()}
       onClick={(e) => {
         e.stopPropagation();
         onClick();
       }}
-      className={`h-7 min-w-7 rounded px-1.5 text-xs font-semibold ${danger ? "text-red-600 hover:bg-red-50" : "text-slate-700 hover:bg-slate-100"}`}
+      className={`h-7 shrink-0 whitespace-nowrap rounded px-2 text-xs font-semibold ${danger ? "text-red-600 hover:bg-red-50" : active ? "bg-indigo-600 text-white" : "text-slate-700 hover:bg-slate-100"}`}
     >
       {children}
     </button>
   );
 }
 
-/** Wraps one element: outline on hover, toolbar and detail menu when selected. */
-function BlockFrame({
+export const ToolSep = () => <span className="mx-0.5 h-5 w-px shrink-0 bg-slate-200" />;
+
+/** One element: outline on hover; when selected, its menu floats above it. */
+function Frame({
   id,
+  label,
   children,
-  toolbar,
-  panel,
+  actions,
+  tools,
   onDragStart,
   onDragEnd,
 }: {
   id: string;
+  label: string;
   children: ReactNode;
-  toolbar?: ReactNode;
-  panel: ReactNode;
+  actions?: ReactNode;
+  tools?: ReactNode;
   onDragStart?: () => void;
   onDragEnd?: () => void;
 }) {
   const { selected, select } = useSelection();
   const on = selected === id;
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (on) ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [on]);
   return (
-    <div ref={ref} className="relative">
-      <div
-        onClick={(e) => {
-          e.stopPropagation();
-          select(id);
-        }}
-        className={`group relative cursor-pointer rounded-md outline-offset-4 transition ${on ? "outline-2 outline-indigo-500 outline" : "hover:outline hover:outline-1 hover:outline-indigo-300"}`}
-      >
-        {(toolbar || onDragStart) && (
-          <div
-            className={`absolute -top-9 right-0 z-20 items-center gap-0.5 rounded-lg border border-slate-200 bg-white p-0.5 shadow-md ${on ? "flex" : "hidden group-hover:flex"}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {onDragStart && (
-              <span
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData("text/plain", id);
-                  e.dataTransfer.effectAllowed = "move";
-                  onDragStart();
-                }}
-                onDragEnd={onDragEnd}
-                title="끌어서 위치 옮기기"
-                className="flex h-7 w-7 cursor-grab items-center justify-center rounded text-slate-500 hover:bg-slate-100 active:cursor-grabbing"
-              >
-                ⋮⋮
-              </span>
-            )}
-            {toolbar}
-          </div>
-        )}
-        {children}
-      </div>
-      {on && panel && (
-        <div data-ve-panel className="relative z-10 mt-3 mb-4 cursor-auto rounded-xl border border-indigo-200 bg-white p-4 text-left text-sm text-slate-800 shadow-lg" onClick={(e) => e.stopPropagation()} style={{ fontFamily: "var(--font-sans)" }}>
-          {panel}
+    <div
+      data-ve-frame
+      className={`relative rounded-md outline-offset-4 transition ${on ? "z-20 outline outline-2 outline-indigo-500" : "hover:outline hover:outline-1 hover:outline-indigo-300"}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        select(id);
+      }}
+    >
+      {on && (
+        <div
+          data-ve-panel
+          className="absolute bottom-full left-0 z-30 mb-2 flex max-w-full flex-wrap items-center gap-0.5 rounded-lg border border-slate-200 bg-white p-1 text-left text-slate-800 shadow-lg"
+          style={{ fontFamily: "var(--font-sans)", fontSize: 12, lineHeight: 1.4 }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {onDragStart && (
+            <span
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData("text/plain", id);
+                e.dataTransfer.effectAllowed = "move";
+                onDragStart();
+              }}
+              onDragEnd={onDragEnd}
+              title="끌어서 위치 옮기기"
+              className="flex h-7 w-6 cursor-grab items-center justify-center rounded text-slate-500 hover:bg-slate-100 active:cursor-grabbing"
+            >
+              ⋮⋮
+            </span>
+          )}
+          <span className="px-1.5 text-xs font-bold text-indigo-600">{label}</span>
+          {actions && (
+            <>
+              <ToolSep />
+              {actions}
+            </>
+          )}
+          {tools && (
+            <>
+              <ToolSep />
+              {tools}
+            </>
+          )}
         </div>
       )}
+      {children}
     </div>
   );
 }
 
 /** A fixed (not movable) selectable area, e.g. the post title or the FAQ. */
-export function Selectable({ id, children, panel }: { id: string; children: ReactNode; panel: ReactNode }) {
+export function Selectable({ id, label, children, tools }: { id: string; label: string; children: ReactNode; tools?: ReactNode }) {
   return (
-    <BlockFrame id={id} panel={panel}>
+    <Frame id={id} label={label} tools={tools}>
       {children}
-    </BlockFrame>
+    </Frame>
   );
 }
 
-/** Clickable wrapper for an image inside an element. */
-export function ImgHotspot({ onClick, children, className = "" }: { onClick?: () => void; children: ReactNode; className?: string }) {
-  if (!onClick) return <>{children}</>;
+/** Small text input inside an element menu. */
+export function ToolInput({ value, onChange, placeholder, width = 160 }: { value: string; onChange: (v: string) => void; placeholder: string; width?: number }) {
   return (
-    <div
-      className={`group/img relative ${className}`}
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
+    <input
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      style={{ width }}
+      className="h-7 rounded border border-slate-300 px-2 text-xs focus:border-indigo-500 focus:outline-none"
+    />
+  );
+}
+
+/** Small select inside an element menu. */
+export function ToolSelect({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: [string, string][] }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      className="h-7 rounded border border-slate-300 bg-white px-1 text-xs"
     >
-      {children}
-      <span className="pointer-events-none absolute inset-0 hidden items-center justify-center rounded-[inherit] bg-indigo-900/30 text-xs font-semibold text-white group-hover/img:flex">
-        이미지 편집
-      </span>
-    </div>
-  );
-}
-
-export function PanelTitle({ children, right }: { children: ReactNode; right?: ReactNode }) {
-  return (
-    <div className="mb-3 flex items-center justify-between gap-2">
-      <p className="text-xs font-bold uppercase tracking-wide text-indigo-600">{children}</p>
-      {right}
-    </div>
+      {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+    </select>
   );
 }

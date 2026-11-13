@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useState, useTransition } from "react";
-import { previewTheme, renderBlockPreview } from "@/lib/newsletter/render";
+import { previewTheme } from "@/lib/newsletter/render";
 import {
   BLOCK_LABELS,
   TEMPLATES,
@@ -17,7 +17,9 @@ import {
 } from "@/lib/newsletter/types";
 import { deleteNewsletter, duplicateNewsletter, generateWithAi, restorePrevious, saveNewsletter, sendTest } from "../actions";
 import { ImageMenu } from "@/components/image-field";
-import { PanelTitle, Selectable, VisualEditor, type PaletteItem } from "@/components/visual-editor";
+import { Selectable, ToolBtn, ToolInput, VisualEditor, type PaletteItem } from "@/components/visual-editor";
+import { Editable } from "@/components/editable";
+import { NewsletterBlockView } from "./block-view";
 
 const PALETTE: PaletteItem[] = [
   { type: "hero", label: BLOCK_LABELS.hero, icon: "★", hint: "큰 이미지 + 제목 + 도입" },
@@ -46,7 +48,6 @@ export function NewsletterEditor({
   newsletter,
   settings,
   userId,
-  siteUrl,
 }: {
   newsletter: Newsletter;
   settings: SenderSettings;
@@ -75,16 +76,8 @@ export function NewsletterEditor({
     setDraft((d) => ({ ...d, ...patch }));
     setDirty(true);
   };
-  const updateBlock = (i: number, patch: Partial<Block>) =>
-    update({ blocks: draft.blocks.map((b, j) => (j === i ? { ...b, ...patch } : b)) });
-  const updateItem = (bi: number, ii: number, patch: Partial<BlockItem>) =>
-    updateBlock(bi, { items: draft.blocks[bi].items.map((it, j) => (j === ii ? { ...it, ...patch } : it)) });
   const [selected, setSelected] = useState<string | null>(null);
-  const [sub, setSub] = useState<string | null>(null);
-  const select = useCallback((id: string | null, s?: string | null) => {
-    setSelected(id);
-    setSub(s ?? null);
-  }, []);
+  const select = useCallback((id: string | null) => setSelected(id), []);
 
   const run = (label: string, fn: () => Promise<void>) => {
     setBusy(label);
@@ -226,26 +219,16 @@ export function NewsletterEditor({
 
   const top = (
     <>
-      <Selectable
-        id="__meta"
-        panel={
-          <div className="space-y-3">
-            <PanelTitle>이메일 정보</PanelTitle>
-            <div>
-              <label className="label">이메일 제목</label>
-              <input autoFocus value={draft.subject} onChange={(e) => update({ subject: e.target.value })} className="input" maxLength={255} />
-            </div>
-            <div>
-              <label className="label">미리보기 문구 (받은편지함에서 제목 옆에 보이는 문장)</label>
-              <input value={draft.preheader} onChange={(e) => update({ preheader: e.target.value })} className="input" maxLength={255} />
-            </div>
+      <Selectable id="__meta" label="이메일 정보">
+        <div className="mb-3 space-y-1 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs text-slate-500" style={{ fontFamily: "var(--font-sans)" }}>
+          <div className="flex gap-2">
+            <span className="w-24 shrink-0">이메일 제목</span>
+            <Editable edKey="__subject" single value={draft.subject} onChange={(v) => update({ subject: v.slice(0, 255) })} placeholder="이메일 제목을 입력하세요" className="flex-1 font-bold text-slate-800" />
           </div>
-        }
-      >
-        <div className="mb-3 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs text-slate-500" style={{ fontFamily: "var(--font-sans)" }}>
-          <p className="truncate">
-            <b className="text-slate-700">{draft.subject || "(이메일 제목 없음)"}</b> — {draft.preheader || "미리보기 문구"}
-          </p>
+          <div className="flex gap-2">
+            <span className="w-24 shrink-0">미리보기 문구</span>
+            <Editable edKey="__preheader" single value={draft.preheader} onChange={(v) => update({ preheader: v.slice(0, 255) })} placeholder="받은편지함에서 제목 옆에 보이는 문장" className="flex-1" />
+          </div>
         </div>
       </Selectable>
       <div style={{ background: t.header_bg, padding: `20px ${t.pad}`, borderRadius: `${t.radius} ${t.radius} 0 0` }}>
@@ -319,9 +302,9 @@ export function NewsletterEditor({
           blocks={draft.blocks}
           onChange={(blocks) => update({ blocks })}
           palette={PALETTE}
+          labels={(b) => BLOCK_LABELS[b.type]}
           create={(type) => emptyBlock(type as BlockType)}
           selected={selected}
-          sub={sub}
           onSelect={select}
           settings={aiSettings}
           settingsLabel="AI·설정"
@@ -329,130 +312,79 @@ export function NewsletterEditor({
           top={top}
           bottom={bottom}
           emptyText="왼쪽 'AI·설정'에서 AI로 만들거나, 요소를 끌어다 놓으세요."
-          canvasClassName="mx-auto w-full max-w-[600px] overflow-hidden"
+          canvasClassName="mx-auto w-full max-w-[600px]"
           canvasStyle={{ background: t.body_bg, color: t.text, fontFamily: t.font, borderRadius: t.radius }}
-          renderBlock={(b, _i, onImage) => (
-            <div
-              style={{ padding: `0 ${t.pad} 12px` }}
-              onClick={(e) => {
-                const el = (e.target as HTMLElement).closest("[data-ls-img]");
-                if (el) {
-                  e.stopPropagation();
-                  onImage(el.getAttribute("data-ls-img") ?? "main");
-                }
-              }}
-              className="[&_[data-ls-img]]:cursor-pointer [&_[data-ls-img]:hover]:outline [&_[data-ls-img]:hover]:outline-2 [&_[data-ls-img]:hover]:outline-violet-500"
-              dangerouslySetInnerHTML={{
-                __html:
-                  renderBlockPreview(b, draft.template as Newsletter["template"], settings, siteUrl) ||
-                  `<p style="padding:16px;border:1px dashed #cbd5e1;border-radius:8px;text-align:center;color:#94a3b8;font-size:13px;">${BLOCK_LABELS[b.type]}: 눌러서 내용을 입력하세요</p>`,
-              }}
-            />
+          renderBlock={(b, _i, { ed, onImage }) => (
+            <div style={{ padding: `0 ${t.pad} 12px` }}>
+              <NewsletterBlockView b={b} t={t} ed={ed} onImage={onImage} />
+            </div>
           )}
-          renderPanel={(b, i, s, change, move) => (
-            <BlockFields block={b} sub={s} userId={userId} onChange={change} move={move} onItem={(ii, patch) => updateItem(i, ii, patch)} />
-          )}
+          renderTools={(b, change, openImage) => <BlockTools block={b} onChange={change} openImage={openImage} />}
+          renderImage={(b, key, change) => <ImagePanel block={b} k={key} userId={userId} onChange={change} />}
         />
       </div>
     </div>
   );
 }
 
-function BlockFields({
-  block: b,
-  sub,
-  userId,
-  onChange,
-  onItem,
-  move,
-}: {
-  block: Block;
-  sub: string | null;
-  userId: string;
-  onChange: (patch: Partial<Block>) => void;
-  onItem: (i: number, patch: Partial<BlockItem>) => void;
-  move: (d: -1 | 1) => void;
-}) {
-  const hasHeading = b.type !== "divider" && b.type !== "button" && b.type !== "image";
-  const hasText = b.type === "hero" || b.type === "text" || b.type === "image";
-  const hasImage = b.type === "hero" || b.type === "image";
-  const itemIndex = sub && sub !== "main" ? Number(sub) : -1;
-  const moveItem = (i: number, d: -1 | 1) => {
+function BlockTools({ block: b, onChange, openImage }: { block: Block; onChange: (patch: Partial<Block>) => void; openImage: (key: string) => void }) {
+  switch (b.type) {
+    case "hero":
+    case "image":
+      return <ToolBtn label="이미지 변경" onClick={() => openImage("main")}>🖼 이미지 변경</ToolBtn>;
+    case "button":
+      return <ToolInput value={b.button_url} onChange={(v) => onChange({ button_url: v.trim() })} placeholder="링크 https://" width={220} />;
+    case "cards":
+    case "thumbs":
+      return (
+        <>
+          <ToolBtn label="항목 추가" onClick={() => b.items.length < 12 && onChange({ items: [...b.items, emptyItem()] })}>+ 항목</ToolBtn>
+          <ToolBtn label="마지막 항목 삭제" onClick={() => b.items.length > 1 && onChange({ items: b.items.slice(0, -1) })}>− 항목</ToolBtn>
+        </>
+      );
+  }
+  return null;
+}
+
+function ImagePanel({ block: b, k, userId, onChange }: { block: Block; k: string; userId: string; onChange: (patch: Partial<Block>) => void }) {
+  if (k === "main") {
+    return (
+      <ImageMenu
+        userId={userId}
+        value={b.image_url}
+        context={[b.heading, b.image_keyword].filter(Boolean).join(", ")}
+        ratio={b.type === "hero" ? "2:1" : "3:2"}
+        onChange={(url) => onChange({ image_url: url })}
+      />
+    );
+  }
+  const i = Number(k);
+  const it = b.items[i];
+  if (!it) return null;
+  const setItem = (patch: Partial<BlockItem>) => onChange({ items: b.items.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
+  const moveItem = (d: -1 | 1) => {
     const j = i + d;
     if (j < 0 || j >= b.items.length) return;
     const items = [...b.items];
     [items[i], items[j]] = [items[j], items[i]];
     onChange({ items });
   };
-  if (b.type === "divider") return <p className="text-xs text-slate-500">구분선은 편집할 내용이 없어요. 위쪽 도구로 옮기거나 지울 수 있어요.</p>;
   return (
     <div className="space-y-3">
-      <PanelTitle>{BLOCK_LABELS[b.type]} 편집</PanelTitle>
-      {hasImage && (
-        <ImageMenu
-          userId={userId}
-          value={b.image_url}
-          context={[b.heading, b.image_keyword].filter(Boolean).join(", ")}
-          ratio={b.type === "hero" ? "2:1" : "3:2"}
-          onMove={move}
-          onChange={(url) => onChange({ image_url: url })}
-        />
-      )}
-      {hasHeading && (
-        <input autoFocus={!hasImage} value={b.heading} onChange={(e) => onChange({ heading: e.target.value })} className="input" placeholder={b.type === "hero" ? "대표 제목" : "제목"} />
-      )}
-      {hasText && (
-        <textarea
-          value={b.text}
-          onChange={(e) => onChange({ text: e.target.value })}
-          rows={b.type === "image" ? 1 : 5}
-          className="input"
-          placeholder={b.type === "image" ? "이미지 설명 (선택)" : "본문 (빈 줄로 문단 구분)"}
-        />
-      )}
-      {b.type === "button" && (
-        <div className="grid gap-2 sm:grid-cols-2">
-          <input autoFocus value={b.button_label} onChange={(e) => onChange({ button_label: e.target.value })} className="input" placeholder="버튼 문구" />
-          <input value={b.button_url} onChange={(e) => onChange({ button_url: e.target.value })} className="input" placeholder="https://링크" />
-        </div>
-      )}
-      {(b.type === "cards" || b.type === "thumbs") && (
-        <div className="space-y-3">
-          {b.items.map((it, i) => (
-            <div key={i} className={`space-y-2 rounded-lg border p-3 ${itemIndex === i ? "border-indigo-300 bg-indigo-50" : "border-slate-200"}`}>
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span>항목 {i + 1}</span>
-                <button type="button" className="text-red-600 hover:underline" onClick={() => onChange({ items: b.items.filter((_, j) => j !== i) })}>
-                  항목 삭제
-                </button>
-              </div>
-              {itemIndex === i ? (
-                <ImageMenu
-                  userId={userId}
-                  value={it.image_url}
-                  context={[it.title, it.image_keyword].filter(Boolean).join(", ")}
-                  ratio="4:3"
-                  onMove={(d) => moveItem(i, d)}
-                  moveLabels={["앞 항목으로", "뒤 항목으로"]}
-                  onChange={(url) => onItem(i, { image_url: url })}
-                />
-              ) : (
-                <p className="text-xs text-slate-500">본문에서 이 항목의 이미지를 누르면 이미지 메뉴가 열려요.</p>
-              )}
-              <input value={it.title} onChange={(e) => onItem(i, { title: e.target.value })} className="input" placeholder="제목" />
-              {b.type === "cards" && (
-                <textarea value={it.text} onChange={(e) => onItem(i, { text: e.target.value })} rows={2} className="input" placeholder="설명" />
-              )}
-              <input value={it.url} onChange={(e) => onItem(i, { url: e.target.value })} className="input" placeholder="자세히 보기 링크 https://" />
-            </div>
-          ))}
-          {b.items.length < 12 && (
-            <button type="button" className="btn-secondary w-full" onClick={() => onChange({ items: [...b.items, emptyItem()] })}>
-              + 항목 추가
-            </button>
-          )}
-        </div>
-      )}
+      <p className="text-xs text-slate-500">{it.title || `항목 ${i + 1}`}의 이미지</p>
+      <ImageMenu
+        userId={userId}
+        value={it.image_url}
+        context={[it.title, it.image_keyword].filter(Boolean).join(", ")}
+        ratio="4:3"
+        onMove={moveItem}
+        moveLabels={["앞 항목으로", "뒤 항목으로"]}
+        onChange={(url) => setItem({ image_url: url })}
+      />
+      <div>
+        <label className="label">이 항목의 &lsquo;자세히 보기&rsquo; 링크</label>
+        <input className="input" value={it.url} onChange={(e) => setItem({ url: e.target.value.trim() })} placeholder="https://" />
+      </div>
     </div>
   );
 }

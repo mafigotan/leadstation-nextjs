@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from "react";
+import { Fragment, createElement, type ReactNode } from "react";
 import { BOX_STYLES, plain, type Block, type Faq, type HeaderImage } from "@/lib/writer/types";
 
 /** Renders **bold** and [label](https://url) markup; everything else is text. */
@@ -56,50 +56,64 @@ function Hot({ onImage, k, children }: { onImage?: (key: string) => void; k: str
   );
 }
 
+type EdFn = (path: string, value: string, opts?: { as?: string; className?: string; placeholder?: string; rich?: boolean; single?: boolean; list?: boolean }) => ReactNode;
+
 export function BlockView({
   b: raw,
   lang = "ko",
   draft = false,
   onImage,
+  ed,
 }: {
   b: Block;
   lang?: string;
   draft?: boolean;
   onImage?: (key: string) => void;
+  /** Inline editing (editor only). */
+  ed?: EdFn;
 }) {
-  // Skip empty lines left over from editing.
-  const b = { ...raw, items: raw.items.filter((x) => x.trim()) };
-  const rows = raw.type === "procon" || raw.type === "thumbs" ? raw.rows : raw.rows.filter((r) => r.some((c) => c.trim()));
+  const editing = !!ed;
+  // Skip empty lines left over from editing (public page).
+  const b = editing ? raw : { ...raw, items: raw.items.filter((x) => x.trim()) };
+  const rows = editing || raw.type === "procon" || raw.type === "thumbs" ? raw.rows : raw.rows.filter((r) => r.some((c) => c.trim()));
+  /** Text at `path`: editable in the editor, formatted on the page. */
+  const T = (path: string, value: string, as: string, className = "", placeholder = "", extra: { single?: boolean; list?: boolean } = {}) =>
+    ed ? ed(path, value, { as, className, placeholder, rich: true, ...extra }) : createElement(as, { className }, <Inline text={value} />);
+
   switch (b.type) {
     case "h2":
-      if (!b.text.trim()) return null;
+      if (!editing && !b.text.trim()) return null;
       return (
-        <h2 className="mt-12 mb-4 text-2xl font-bold leading-snug">
-          {b.label && <span className="mr-2 inline-block rounded bg-indigo-600 px-2 py-0.5 align-middle text-xs font-semibold text-white">{b.label}</span>}
-          <Inline text={b.text} />
+        <h2 className="mt-12 mb-4 flex flex-wrap items-center gap-2 text-2xl font-bold leading-snug">
+          {b.label && <span className="inline-block rounded bg-indigo-600 px-2 py-0.5 text-xs font-semibold text-white">{b.label}</span>}
+          {T("text", b.text, "span", "min-w-[4rem] flex-1", "소제목", { single: true })}
         </h2>
       );
     case "h3":
-      return <h3 className="mt-8 mb-3 text-lg font-bold"><Inline text={b.text} /></h3>;
+      return <h3 className="mt-8 mb-3 text-lg font-bold">{T("text", b.text, "span", "block", "작은 소제목", { single: true })}</h3>;
     case "p":
-      return <p className="my-4 leading-8 whitespace-pre-line"><Inline text={b.text} /></p>;
+      return T("text", b.text, "p", "my-4 leading-8 whitespace-pre-line", "문단을 입력하세요");
     case "ul":
     case "ol": {
       const Tag = b.type;
       return (
         <Tag className={`my-4 space-y-1 pl-6 leading-7 ${b.type === "ul" ? "list-disc" : "list-decimal"}`}>
-          {b.items.map((it, i) => <li key={i}><Inline text={it} /></li>)}
+          {b.items.map((it, i) => <li key={i}>{T(`items.${i}`, it, "span", "block", "항목", { list: true })}</li>)}
         </Tag>
       );
     }
     case "quote":
-      return <blockquote className="my-8 border-l-4 border-indigo-500 pl-5 text-xl font-medium leading-relaxed text-slate-700"><Inline text={b.text} /></blockquote>;
+      return (
+        <blockquote className="my-8 border-l-4 border-indigo-500 pl-5 text-xl font-medium leading-relaxed text-slate-700">
+          {T("text", b.text, "p", "", "기억에 남을 한 문장")}
+        </blockquote>
+      );
     case "say":
       return (
         <figure className="my-8 rounded-2xl bg-slate-50 px-8 py-6 text-center">
           <div className="text-5xl leading-none text-indigo-300">“</div>
-          <p className="text-lg font-medium leading-relaxed"><Inline text={b.text} /></p>
-          {b.label && <figcaption className="mt-2 text-sm text-slate-500">{b.label}</figcaption>}
+          {T("text", b.text, "p", "text-lg font-medium leading-relaxed", "강조할 한마디")}
+          {(b.label || editing) && T("label", b.label, "figcaption", "mt-2 text-sm text-slate-500", "누구의 말인지 (선택)", { single: true })}
         </figure>
       );
     case "table": {
@@ -109,11 +123,11 @@ export function BlockView({
         <div className="my-6 overflow-x-auto">
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr>{head.map((c, i) => <th key={i} className="border border-slate-200 bg-slate-100 px-3 py-2 text-left font-semibold"><Inline text={c} /></th>)}</tr>
+              <tr>{head.map((c, i) => <th key={i} className="border border-slate-200 bg-slate-100 px-3 py-2 text-left font-semibold">{T(`rows.0.${i}`, c, "span", "block", "머리글", { single: true })}</th>)}</tr>
             </thead>
             <tbody>
               {body.map((r, i) => (
-                <tr key={i}>{head.map((_, j) => <td key={j} className="border border-slate-200 px-3 py-2 align-top"><Inline text={r[j] ?? ""} /></td>)}</tr>
+                <tr key={i}>{head.map((_, j) => <td key={j} className="border border-slate-200 px-3 py-2 align-top">{T(`rows.${i + 1}.${j}`, r[j] ?? "", "span", "block", "", { single: true })}</td>)}</tr>
               ))}
             </tbody>
           </table>
@@ -126,8 +140,8 @@ export function BlockView({
       return (
         <aside className={`my-6 rounded-xl border p-5 ${BOX_COLORS[st]}`}>
           <p className="mb-1 text-sm font-bold">{labels[st]}</p>
-          {b.text && <p className="leading-7"><Inline text={b.text} /></p>}
-          {b.items.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5 leading-7">{b.items.map((it, i) => <li key={i}><Inline text={it} /></li>)}</ul>}
+          {(b.text || editing) && T("text", b.text, "p", "leading-7", "첫 문장 (선택)")}
+          {b.items.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5 leading-7">{b.items.map((it, i) => <li key={i}>{T(`items.${i}`, it, "span", "block", "항목", { list: true })}</li>)}</ul>}
         </aside>
       );
     }
@@ -147,8 +161,8 @@ export function BlockView({
         <div className={`my-6 grid gap-3 ${rows.length >= 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
           {rows.slice(0, 4).map((r, i) => (
             <div key={i} className={`rounded-xl border border-slate-200 p-4 ${b.type === "stats" ? "text-center" : ""}`}>
-              <b className={`block ${b.type === "stats" ? "text-2xl text-indigo-600" : "text-indigo-700"}`}><Inline text={r[0] ?? ""} /></b>
-              <span className="mt-1 block text-sm leading-6 text-slate-600"><Inline text={r[1] ?? ""} /></span>
+              {T(`rows.${i}.0`, r[0] ?? "", "b", `block ${b.type === "stats" ? "text-2xl text-indigo-600" : "text-indigo-700"}`, b.type === "stats" ? "숫자" : "제목", { single: true })}
+              {T(`rows.${i}.1`, r[1] ?? "", "span", "mt-1 block text-sm leading-6 text-slate-600", "설명")}
             </div>
           ))}
         </div>
@@ -159,9 +173,9 @@ export function BlockView({
           {rows.map((r, i) => (
             <li key={i} className="flex gap-4 rounded-xl border border-slate-200 p-4">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">{i + 1}</span>
-              <div>
-                <b className="block"><Inline text={r[0] ?? ""} /></b>
-                <span className="text-sm leading-6 text-slate-600"><Inline text={r[1] ?? ""} /></span>
+              <div className="min-w-0 flex-1">
+                {T(`rows.${i}.0`, r[0] ?? "", "b", "block", "단계 제목", { single: true })}
+                {T(`rows.${i}.1`, r[1] ?? "", "span", "block text-sm leading-6 text-slate-600", "설명")}
               </div>
             </li>
           ))}
@@ -175,7 +189,12 @@ export function BlockView({
             <div key={side} className={`rounded-xl border p-5 ${side === 0 ? "border-emerald-200 bg-emerald-50" : "border-rose-200 bg-rose-50"}`}>
               <h4 className="mb-2 font-bold">{heads[side]}</h4>
               <ul className="space-y-1 text-sm leading-6">
-                {(rows[side] ?? []).filter(Boolean).map((p, i) => <li key={i}>{side === 0 ? "✓ " : "✕ "}<Inline text={p} /></li>)}
+                {(editing ? (rows[side]?.length ? rows[side] : [""]) : (rows[side] ?? []).filter(Boolean)).map((p, i) => (
+                  <li key={i} className="flex gap-1">
+                    <span>{side === 0 ? "✓" : "✕"}</span>
+                    {T(`rows.${side}.${i}`, p, "span", "block flex-1", "항목", { list: true })}
+                  </li>
+                ))}
               </ul>
             </div>
           ))}
@@ -186,7 +205,7 @@ export function BlockView({
       return (
         <ul className="my-6 space-y-2 rounded-xl border border-slate-200 p-5">
           {b.items.map((it, i) => (
-            <li key={i} className="flex gap-2 leading-7"><span className="text-indigo-600">☑</span><span><Inline text={it} /></span></li>
+            <li key={i} className="flex gap-2 leading-7"><span className="text-indigo-600">☑</span>{T(`items.${i}`, it, "span", "block flex-1", "확인할 항목", { list: true })}</li>
           ))}
         </ul>
       );
@@ -201,9 +220,9 @@ export function BlockView({
                   <Pic url={b.images[i] ?? ""} alt={plain(r[0] ?? "")} prompt={r[2]} className="aspect-[4/3] w-full" />
                 </Hot>
               </div>
-              <div className={card ? "px-4 pb-4" : "p-4 sm:pl-0"}>
-                <h3 className="font-bold"><Inline text={r[0] ?? ""} /></h3>
-                <p className="mt-1 text-sm leading-6 text-slate-600"><Inline text={r[1] ?? ""} /></p>
+              <div className={`min-w-0 flex-1 ${card ? "px-4 pb-4" : "p-4 sm:pl-0"}`}>
+                {T(`rows.${i}.0`, r[0] ?? "", "h3", "font-bold", "제목", { single: true })}
+                {T(`rows.${i}.1`, r[1] ?? "", "p", "mt-1 text-sm leading-6 text-slate-600", "설명")}
               </div>
             </div>
           ))}

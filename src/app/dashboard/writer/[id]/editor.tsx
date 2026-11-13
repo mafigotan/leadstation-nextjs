@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { BlockView, Inline, Pic } from "@/components/article-view";
+import { BlockView, Pic } from "@/components/article-view";
 import { ImageMenu } from "@/components/image-field";
-import { PanelTitle, Selectable, VisualEditor, type PaletteItem } from "@/components/visual-editor";
+import { Modal, Selectable, ToolBtn, ToolInput, ToolSelect, VisualEditor, type PaletteItem } from "@/components/visual-editor";
+import { Editable } from "@/components/editable";
 import {
   BLOCK_LABELS,
   BOX_STYLES,
@@ -47,222 +48,116 @@ const AI_ACTIONS = [
   ["concise", "간결하게"],
 ] as const;
 
-/** Textarea that keeps its own text so typing spaces and blank lines is not disturbed by parsing. */
-function LinesField({ initial, onChange, rows = 4, placeholder }: { initial: string; onChange: (v: string) => void; rows?: number; placeholder?: string }) {
-  const [v, setV] = useState(initial);
-  return (
-    <textarea
-      className="input font-mono text-[13px]"
-      rows={rows}
-      value={v}
-      placeholder={placeholder}
-      onChange={(e) => {
-        setV(e.target.value);
-        onChange(e.target.value);
-      }}
-    />
-  );
-}
-
-const toLines = (v: string) => v.split("\n");
-const toCells = (v: string) => v.split("\n").map((l) => l.split("|").map((c) => c.trim()));
-const fromCells = (rows: string[][]) => rows.map((r) => r.join(" | ")).join("\n");
-const Hint = ({ children }: { children: React.ReactNode }) => <p className="text-xs text-slate-500">{children}</p>;
-
-function BlockPanel({
-  b,
-  sub,
-  update,
-  move,
-  userId,
-  ai,
-  aiBusy,
-}: {
-  b: Block;
-  sub: string | null;
-  update: (patch: Partial<Block>) => void;
-  move: (d: -1 | 1) => void;
-  userId: string;
-  ai: (action: string) => void;
-  aiBusy: boolean;
-}) {
-  const text = (rows = 3, placeholder = "") => (
-    <textarea autoFocus className="input" rows={rows} value={b.text} placeholder={placeholder} onChange={(e) => update({ text: e.target.value })} />
-  );
-  const title = <PanelTitle>{BLOCK_LABELS[b.type]} 편집</PanelTitle>;
+/** Element options shown in the menu above the selected element. */
+function blockTools(
+  b: Block,
+  update: (patch: Partial<Block>) => void,
+  openImage: (key: string) => void,
+  ai: (action: string) => void,
+  aiBusy: boolean,
+) {
+  const addItem = () => update({ items: [...b.items, ""] });
+  const addRow = (cells: number) => update({ rows: [...b.rows, Array(cells).fill("")] });
+  const dropRow = (min: number) => b.rows.length > min && update({ rows: b.rows.slice(0, -1) });
   switch (b.type) {
-    case "h2":
-      return (
-        <>
-          {title}
-          <div className="flex gap-2">
-            <input className="input w-28" value={b.label} onChange={(e) => update({ label: e.target.value })} placeholder="라벨(선택)" />
-            <input autoFocus className="input font-bold" value={b.text} onChange={(e) => update({ text: e.target.value })} placeholder="소제목" />
-          </div>
-        </>
-      );
-    case "h3":
-      return (
-        <>
-          {title}
-          <input autoFocus className="input font-semibold" value={b.text} onChange={(e) => update({ text: e.target.value })} placeholder="작은 소제목" />
-        </>
-      );
     case "p":
     case "quote":
       return (
-        <div className="space-y-2">
-          {title}
-          {text(b.type === "p" ? 5 : 2)}
-          <div className="flex flex-wrap gap-1">
-            {AI_ACTIONS.map(([k, l]) => (
-              <button key={k} type="button" disabled={aiBusy} onClick={() => ai(k)} className="rounded-md bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100 disabled:opacity-50">
-                ✦ {l}
-              </button>
-            ))}
-          </div>
-          <Hint>**굵게**, [링크 글자](https://주소) 형식을 쓸 수 있어요.</Hint>
-        </div>
+        <ToolSelect
+          value=""
+          onChange={(v) => v && !aiBusy && ai(v)}
+          options={[["", aiBusy ? "AI 작업 중…" : "✦ AI로 고치기"], ...AI_ACTIONS.map(([k, l]) => [k, l] as [string, string])]}
+        />
       );
-    case "say":
+    case "h2":
+      return <ToolInput value={b.label} onChange={(label) => update({ label })} placeholder="라벨 (예: STEP, TIP)" width={130} />;
+    case "box":
       return (
-        <div className="space-y-2">
-          {title}
-          {text(2, "강조할 한마디")}
-          <input className="input" value={b.label} onChange={(e) => update({ label: e.target.value })} placeholder="누구의 말인지 (예: 10년 차 캠퍼)" />
-        </div>
+        <>
+          <ToolSelect value={b.style} onChange={(style) => update({ style })} options={Object.entries(BOX_STYLES)} />
+          <ToolBtn label="항목 추가" onClick={addItem}>+ 항목</ToolBtn>
+        </>
       );
     case "ul":
     case "ol":
     case "check":
-      return (
-        <div className="space-y-2">
-          {title}
-          <LinesField initial={b.items.join("\n")} onChange={(v) => update({ items: toLines(v) })} placeholder="한 줄에 하나씩" />
-        </div>
-      );
-    case "box":
-      return (
-        <div className="space-y-2">
-          {title}
-          <div className="flex flex-wrap gap-1">
-            {Object.entries(BOX_STYLES).map(([v, l]) => (
-              <button key={v} type="button" onClick={() => update({ style: v })} className={`rounded-full border px-3 py-1 text-xs ${b.style === v ? "border-indigo-600 bg-indigo-600 text-white" : "border-slate-300"}`}>
-                {l}
-              </button>
-            ))}
-          </div>
-          {text(2, "첫 문장 (선택)")}
-          <LinesField initial={b.items.join("\n")} onChange={(v) => update({ items: toLines(v) })} rows={3} placeholder="항목, 한 줄에 하나씩 (선택)" />
-        </div>
-      );
-    case "img":
+      return <ToolBtn label="항목 추가" onClick={addItem}>+ 항목</ToolBtn>;
+    case "table": {
+      const cols = b.rows[0]?.length ?? 2;
       return (
         <>
-          <PanelTitle>이미지</PanelTitle>
-          <ImageMenu
-            userId={userId}
-            value={b.image_url}
-            onChange={(url) => update({ image_url: url })}
-            context={b.prompt || b.text}
-            ratio="3:2"
-            onMove={move}
-            alt={b.text}
-            onAlt={(v) => update({ text: v })}
-          />
+          <ToolBtn label="행 추가" onClick={() => addRow(cols)}>+ 행</ToolBtn>
+          <ToolBtn label="행 삭제" onClick={() => dropRow(2)}>− 행</ToolBtn>
+          <ToolBtn label="열 추가" onClick={() => cols < 6 && update({ rows: b.rows.map((r) => [...r, ""]) })}>+ 열</ToolBtn>
+          <ToolBtn label="열 삭제" onClick={() => cols > 1 && update({ rows: b.rows.map((r) => r.slice(0, -1)) })}>− 열</ToolBtn>
         </>
-      );
-    case "table":
-      return (
-        <div className="space-y-2">
-          {title}
-          <LinesField initial={fromCells(b.rows)} onChange={(v) => update({ rows: toCells(v) })} rows={6} />
-          <Hint>한 줄이 한 행이에요. 칸은 | 로 나눠요. 첫 줄은 머리글이에요.</Hint>
-        </div>
-      );
-    case "keys":
-    case "steps":
-    case "stats":
-      return (
-        <div className="space-y-2">
-          {title}
-          <LinesField initial={fromCells(b.rows)} onChange={(v) => update({ rows: toCells(v) })} />
-          <Hint>한 줄에 하나씩, &lsquo;{b.type === "stats" ? "숫자 | 설명" : "제목 | 설명"}&rsquo; 형식으로 적어요.</Hint>
-        </div>
-      );
-    case "procon":
-      return (
-        <>
-          {title}
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div>
-              <p className="mb-1 text-xs font-semibold text-emerald-700">좋은 점 (한 줄에 하나씩)</p>
-              <LinesField initial={(b.rows[0] ?? []).join("\n")} onChange={(v) => update({ rows: [toLines(v), b.rows[1] ?? []] })} />
-            </div>
-            <div>
-              <p className="mb-1 text-xs font-semibold text-rose-700">아쉬운 점 (한 줄에 하나씩)</p>
-              <LinesField initial={(b.rows[1] ?? []).join("\n")} onChange={(v) => update({ rows: [b.rows[0] ?? [], toLines(v)] })} />
-            </div>
-          </div>
-        </>
-      );
-    case "thumbs": {
-      const images = [...b.images];
-      while (images.length < b.rows.length) images.push("");
-      const setRow = (i: number, j: number, v: string) => update({ rows: b.rows.map((r, k) => (k === i ? Object.assign([...r], { [j]: v }) : r)) });
-      const moveRow = (i: number, d: -1 | 1) => {
-        const j = i + d;
-        if (j < 0 || j >= b.rows.length) return;
-        const rows = [...b.rows];
-        const imgs = [...images];
-        [rows[i], rows[j]] = [rows[j], rows[i]];
-        [imgs[i], imgs[j]] = [imgs[j], imgs[i]];
-        update({ rows, images: imgs });
-      };
-      const imgIndex = sub?.startsWith("t") ? Number(sub.slice(1)) : -1;
-      return (
-        <div className="space-y-3">
-          {title}
-          <div className="flex gap-1">
-            {[["side", "이미지 왼쪽"], ["card", "카드형"]].map(([v, l]) => (
-              <button key={v} type="button" onClick={() => update({ style: v })} className={`rounded-full border px-3 py-1 text-xs ${b.style === v ? "border-indigo-600 bg-indigo-600 text-white" : "border-slate-300"}`}>
-                {l}
-              </button>
-            ))}
-          </div>
-          {b.rows.map((r, i) => (
-            <div key={i} className={`space-y-2 rounded-lg p-3 ${imgIndex === i ? "bg-indigo-50 ring-1 ring-indigo-200" : "bg-slate-50"}`}>
-              <div className="flex gap-2">
-                <input className="input font-semibold" value={r[0] ?? ""} onChange={(e) => setRow(i, 0, e.target.value)} placeholder={`항목 ${i + 1} 제목`} />
-                <button type="button" className="btn-secondary px-2" onClick={() => update({ rows: b.rows.filter((_, k) => k !== i), images: images.filter((_, k) => k !== i) })}>
-                  ✕
-                </button>
-              </div>
-              <textarea className="input" rows={2} value={r[1] ?? ""} onChange={(e) => setRow(i, 1, e.target.value)} placeholder="설명" />
-              {imgIndex === i ? (
-                <ImageMenu
-                  userId={userId}
-                  value={images[i]}
-                  context={r[2] || plain(r[0] ?? "")}
-                  ratio="4:3"
-                  onMove={(d) => moveRow(i, d)}
-                  moveLabels={["앞 항목으로", "뒤 항목으로"]}
-                  onChange={(url) => update({ images: Object.assign([...images], { [i]: url }) })}
-                />
-              ) : (
-                <Hint>본문에서 이 항목의 이미지를 누르면 이미지 메뉴가 열려요.</Hint>
-              )}
-            </div>
-          ))}
-          {b.rows.length < 4 && (
-            <button type="button" className="text-sm font-medium text-indigo-600 hover:underline" onClick={() => update({ rows: [...b.rows, ["", "", ""]] })}>
-              + 항목 추가
-            </button>
-          )}
-        </div>
       );
     }
+    case "keys":
+    case "stats":
+    case "steps":
+      return (
+        <>
+          <ToolBtn label="항목 추가" onClick={() => addRow(2)}>+ 항목</ToolBtn>
+          <ToolBtn label="마지막 항목 삭제" onClick={() => dropRow(1)}>− 항목</ToolBtn>
+        </>
+      );
+    case "img":
+      return <ToolBtn label="이미지 변경" onClick={() => openImage("main")}>🖼 이미지 변경</ToolBtn>;
+    case "thumbs":
+      return (
+        <>
+          <ToolSelect value={b.style} onChange={(style) => update({ style })} options={[["side", "이미지 왼쪽"], ["card", "카드형"]]} />
+          <ToolBtn label="항목 추가" onClick={() => b.rows.length < 4 && addRow(3)}>+ 항목</ToolBtn>
+          <ToolBtn label="마지막 항목 삭제" onClick={() => b.rows.length > 1 && update({ rows: b.rows.slice(0, -1), images: b.images.slice(0, b.rows.length - 1) })}>− 항목</ToolBtn>
+        </>
+      );
   }
+  return null;
+}
+
+function imagePanel(b: Block, key: string, update: (patch: Partial<Block>) => void, userId: string) {
+  if (b.type === "img") {
+    return (
+      <ImageMenu
+        userId={userId}
+        value={b.image_url}
+        onChange={(url) => update({ image_url: url })}
+        context={b.prompt || b.text}
+        ratio="3:2"
+        alt={b.text}
+        onAlt={(v) => update({ text: v })}
+      />
+    );
+  }
+  if (b.type === "thumbs" && key.startsWith("t")) {
+    const i = Number(key.slice(1));
+    const images = [...b.images];
+    while (images.length < b.rows.length) images.push("");
+    const moveRow = (d: -1 | 1) => {
+      const j = i + d;
+      if (j < 0 || j >= b.rows.length) return;
+      const rows = [...b.rows];
+      [rows[i], rows[j]] = [rows[j], rows[i]];
+      [images[i], images[j]] = [images[j], images[i]];
+      update({ rows, images });
+    };
+    return (
+      <>
+        <p className="mb-3 text-xs text-slate-500">{plain(b.rows[i]?.[0] ?? "") || `항목 ${i + 1}`}의 이미지</p>
+        <ImageMenu
+          userId={userId}
+          value={images[i] ?? ""}
+          context={b.rows[i]?.[2] || plain(b.rows[i]?.[0] ?? "")}
+          ratio="4:3"
+          onMove={moveRow}
+          moveLabels={["앞 항목으로", "뒤 항목으로"]}
+          onChange={(url) => update({ images: Object.assign([...images], { [i]: url }) })}
+        />
+      </>
+    );
+  }
+  return null;
 }
 
 export function ArticleEditor({ article, userId, publicBase, previewBase }: { article: Article; userId: string; publicBase: string; previewBase: string }) {
@@ -283,13 +178,10 @@ export function ArticleEditor({ article, userId, publicBase, previewBase }: { ar
   const [titleIdeas, setTitleIdeas] = useState<string[]>([]);
   const [pending, startTransition] = useTransition();
   const [selected, setSelected] = useState<string | null>(null);
-  const [sub, setSub] = useState<string | null>(null);
+  const [headerModal, setHeaderModal] = useState(false);
   const lang = article.brief?.language === "en" ? "en" : "ko";
 
-  const select = useCallback((id: string | null, s?: string | null) => {
-    setSelected(id);
-    setSub(s ?? null);
-  }, []);
+  const select = useCallback((id: string | null) => setSelected(id), []);
 
   const snapshot = JSON.stringify([title, keyword, slug, seoTitle, meta, tags, header, blocks, faq]);
   useEffect(() => setSavedSnap((s) => s || snapshot), [snapshot]);
@@ -471,82 +363,88 @@ export function ArticleEditor({ article, userId, publicBase, previewBase }: { ar
     <>
       <Selectable
         id="__title"
-        panel={
-          <div className="space-y-2">
-            <PanelTitle>글 제목</PanelTitle>
-            <div className="flex gap-2">
-              <input autoFocus className="input font-bold" value={title} onChange={(e) => setTitle(e.target.value)} />
-              <button className="btn-secondary shrink-0" disabled={!!aiBusy} onClick={ideas}>{aiBusy === "title" ? "…" : "✦ 제목 추천"}</button>
-            </div>
-            {titleIdeas.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {titleIdeas.map((t) => (
-                  <button key={t} className="rounded-full bg-violet-50 px-3 py-1 text-sm text-violet-800 hover:bg-violet-100" onClick={() => setTitle(t)}>{t}</button>
-                ))}
-              </div>
-            )}
-          </div>
-        }
+        label="글 제목"
+        tools={<ToolBtn label="제목 추천" onClick={ideas}>{aiBusy === "title" ? "추천 중…" : "✦ 제목 추천"}</ToolBtn>}
       >
-        <h1 className="text-3xl font-bold leading-tight sm:text-4xl">{title || "제목을 입력하세요"}</h1>
+        <Editable as="h1" edKey="__title" single value={title} onChange={setTitle} placeholder="제목을 입력하세요" className="text-3xl font-bold leading-tight sm:text-4xl" />
       </Selectable>
-      <div className="h-6" />
+      {titleIdeas.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-2" style={{ fontFamily: "var(--font-sans)" }}>
+          <span className="text-xs text-slate-500">추천 제목:</span>
+          {titleIdeas.map((t) => (
+            <button key={t} className="rounded-full bg-violet-50 px-3 py-1 text-sm text-violet-800 hover:bg-violet-100" onClick={(e) => { e.stopPropagation(); setTitle(t); }}>{t}</button>
+          ))}
+          <button className="text-xs text-slate-400 hover:underline" onClick={(e) => { e.stopPropagation(); setTitleIdeas([]); }}>닫기</button>
+        </div>
+      )}
+      <div className="h-8" />
       <Selectable
         id="__header"
-        panel={
+        label="대표 이미지"
+        tools={
           <>
-            <PanelTitle>대표 이미지</PanelTitle>
-            <ImageMenu
-              userId={userId}
-              value={header.url ?? ""}
-              onChange={(url) => setHeader((h) => ({ ...h, url }))}
-              context={header.prompt || title}
-              ratio="3:2"
-              alt={header.alt}
-              onAlt={(alt) => setHeader((h) => ({ ...h, alt }))}
-            />
+            <ToolBtn label="이미지 변경" onClick={() => setHeaderModal(true)}>🖼 이미지 변경</ToolBtn>
+            {header.url && <ToolBtn label="이미지 삭제" danger onClick={() => setHeader((h) => ({ ...h, url: "" }))}>✕ 삭제</ToolBtn>}
           </>
         }
       >
-        <div className="group/img relative">
+        <div
+          className="group/img relative cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation();
+            select("__header");
+            setHeaderModal(true);
+          }}
+        >
           <Pic natural url={header.url ?? ""} alt={header.alt ?? title} prompt={header.prompt} className="aspect-[3/2] w-full rounded-2xl" />
           <span className="pointer-events-none absolute inset-0 hidden items-center justify-center rounded-2xl bg-indigo-900/30 text-sm font-semibold text-white group-hover/img:flex">대표 이미지 편집</span>
         </div>
       </Selectable>
+      {headerModal && (
+        <Modal title="대표 이미지" onClose={() => setHeaderModal(false)}>
+          <ImageMenu
+            userId={userId}
+            value={header.url ?? ""}
+            onChange={(url) => setHeader((h) => ({ ...h, url }))}
+            context={header.prompt || title}
+            ratio="3:2"
+            alt={header.alt}
+            onAlt={(alt) => setHeader((h) => ({ ...h, alt }))}
+          />
+        </Modal>
+      )}
       <div className="h-4" />
     </>
   );
 
+  const setQ = (i: number, patch: Partial<Faq>) => setFaq((f) => f.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const bottom = (
     <div className="mt-10">
       <Selectable
         id="__faq"
-        panel={
-          <div className="space-y-3">
-            <PanelTitle>자주 묻는 질문</PanelTitle>
-            {faq.map((q, i) => (
-              <div key={i} className="space-y-2 rounded-lg bg-slate-50 p-3">
-                <div className="flex gap-2">
-                  <input className="input font-semibold" value={q.question} onChange={(e) => setFaq(faq.map((x, j) => (j === i ? { ...x, question: e.target.value } : x)))} placeholder="질문" />
-                  <button className="btn-secondary px-2" onClick={() => setFaq(faq.filter((_, j) => j !== i))}>✕</button>
-                </div>
-                <textarea className="input" rows={2} value={q.answer} onChange={(e) => setFaq(faq.map((x, j) => (j === i ? { ...x, answer: e.target.value } : x)))} placeholder="답변" />
-              </div>
-            ))}
-            <button className="text-sm font-medium text-indigo-600 hover:underline" onClick={() => setFaq([...faq, { question: "", answer: "" }])}>+ 질문 추가</button>
-          </div>
-        }
+        label="자주 묻는 질문"
+        tools={<ToolBtn label="질문 추가" onClick={() => setFaq((f) => [...f, { question: "", answer: "" }])}>+ 질문</ToolBtn>}
       >
         <section>
           <h2 className="mb-4 text-2xl font-bold">{lang === "en" ? "FAQ" : "자주 묻는 질문"}</h2>
           {faq.length === 0 ? (
-            <p className="rounded-xl border-2 border-dashed border-slate-200 p-6 text-center text-sm text-slate-400">눌러서 질문을 추가하세요. (질문이 없으면 블로그에 표시되지 않아요)</p>
+            <p className="rounded-xl border-2 border-dashed border-slate-200 p-6 text-center text-sm text-slate-400">위쪽 메뉴의 &lsquo;+ 질문&rsquo;으로 추가하세요. (질문이 없으면 블로그에 표시되지 않아요)</p>
           ) : (
             <div className="divide-y divide-slate-200 rounded-xl border border-slate-200">
               {faq.map((q, i) => (
-                <div key={i} className="p-4">
-                  <p className="font-semibold">{q.question}</p>
-                  <p className="mt-2 leading-7 text-slate-600"><Inline text={q.answer} /></p>
+                <div key={i} className="group/q relative p-4">
+                  <Editable as="p" edKey={`faq.${i}.q`} single value={q.question} onChange={(v) => setQ(i, { question: v })} placeholder="질문" className="pr-8 font-semibold" />
+                  <Editable as="p" edKey={`faq.${i}.a`} rich value={q.answer} onChange={(v) => setQ(i, { answer: v })} placeholder="답변" className="mt-2 leading-7 text-slate-600" />
+                  <button
+                    title="질문 삭제"
+                    className="absolute right-3 top-3 hidden rounded px-1.5 text-xs text-red-500 hover:bg-red-50 group-hover/q:block"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setFaq((f) => f.filter((_, j) => j !== i));
+                    }}
+                  >
+                    ✕
+                  </button>
                 </div>
               ))}
             </div>
@@ -588,35 +486,24 @@ export function ArticleEditor({ article, userId, publicBase, previewBase }: { ar
         blocks={blocks}
         onChange={setBlocks}
         palette={PALETTE}
+        labels={(b) => BLOCK_LABELS[b.type]}
         create={(t) => emptyBlock(t as BlockType)}
         selected={selected}
-        sub={sub}
         onSelect={select}
         settings={settings}
         settingsLabel="SEO·발행"
         top={top}
         bottom={bottom}
         canvasClassName="card px-6 py-10 text-[17px] text-slate-800 sm:px-12"
-        renderBlock={(b, _i, onImage) => (
+        renderBlock={(b, _i, { onImage, ed }) => (
           <div className={aiBusy === b.id ? "animate-pulse opacity-60" : ""}>
-            {isEmpty(b) ? (
-              <p className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-sm text-slate-400">{BLOCK_LABELS[b.type]}: 눌러서 내용을 입력하세요</p>
-            ) : (
-              <BlockView b={b} lang={lang} draft onImage={onImage} />
-            )}
+            <BlockView b={b} lang={lang} draft onImage={onImage} ed={ed} />
           </div>
         )}
-        renderPanel={(b, _i, s, update, move) => (
-          <BlockPanel b={b} sub={s} update={update} move={move} userId={userId} ai={(a) => runAi(b, a)} aiBusy={!!aiBusy} />
-        )}
+        renderTools={(b, update, openImage) => blockTools(b, update, openImage, (a) => runAi(b, a), !!aiBusy)}
+        renderImage={(b, key, update) => imagePanel(b, key, update, userId)}
       />
-      <p className="mt-3 text-center text-xs text-slate-400">요소를 누르면 편집 메뉴가 열려요. Esc로 닫고, Ctrl+S로 저장해요.</p>
+      <p className="mt-3 text-center text-xs text-slate-400">글자를 누르면 바로 고칠 수 있어요. 요소를 누르면 위쪽에 메뉴가 열리고, 이미지를 누르면 이미지 창이 열려요. Ctrl+S로 저장해요.</p>
     </div>
   );
-}
-
-function isEmpty(b: Block) {
-  if (b.type === "img" || b.type === "thumbs") return false;
-  const any = b.text.trim() || b.items.some((x) => x.trim()) || b.rows.some((r) => r.some((c) => c.trim()));
-  return !any;
 }

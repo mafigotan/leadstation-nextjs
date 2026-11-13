@@ -5,7 +5,7 @@ import type { Block, BlockItem, SenderSettings, Template } from "./types";
 export const UNSUB_PLACEHOLDER = "%%LS_UNSUBSCRIBE_URL%%";
 export const GREETING_PLACEHOLDER = "%%LS_GREETING%%";
 
-type Theme = {
+export type Theme = {
   accent: string;
   page_bg: string;
   body_bg: string;
@@ -203,9 +203,8 @@ export function renderBlockPreview(b: Block, template: Template, settings: Sende
   return renderBlock(b, theme(template, settings.accent_color), true, siteUrl);
 }
 
-export function previewTheme(template: Template, settings: SenderSettings) {
-  const t = theme(template, settings.accent_color);
-  return { page_bg: t.page_bg, body_bg: t.body_bg, text: t.text, muted: t.muted, font: t.font, pad: t.pad, radius: t.radius, header_bg: t.header_bg, header_text: t.header_text };
+export function previewTheme(template: Template, settings: SenderSettings): Theme {
+  return theme(template, settings.accent_color);
 }
 
 export type RenderInput = {
