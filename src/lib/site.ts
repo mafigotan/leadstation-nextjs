@@ -25,6 +25,11 @@ export function userUrl(handle: string, slug?: string): string {
   return `${siteUrl()}/s/${handle}${path}`;
 }
 
+/** Public address of a user's blog or blog post (handle.leadstation.kr/blog/slug). */
+export function blogUrl(handle: string, slug?: string): string {
+  return userUrl(handle, slug ? `blog/${slug}` : "blog");
+}
+
 /** Same page on the main domain (works before DNS is ready and keeps the owner's login for draft previews). */
 export function mainDomainUrl(handle: string, slug?: string): string {
   return `${siteUrl()}/s/${handle}${slug ? `/${slug}` : ""}`;

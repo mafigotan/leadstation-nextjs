@@ -22,9 +22,11 @@ export async function middleware(request: NextRequest) {
     // handle.leadstation.kr/event   -> /s/handle/event
     const parts = pathname.split("/").filter(Boolean);
     const appPaths = new Set(["dashboard", "login", "welcome", "auth", "u", "p", "s"]);
-    if (parts.length <= 1 && !appPaths.has(parts[0] ?? "") && !pathname.startsWith("/_next")) {
+    // handle.leadstation.kr/blog[/post] -> /s/handle/blog[/post]
+    const isBlog = parts[0] === "blog" && parts.length <= 2;
+    if ((isBlog || (parts.length <= 1 && !appPaths.has(parts[0] ?? ""))) && !pathname.startsWith("/_next")) {
       const url = request.nextUrl.clone();
-      url.pathname = `/s/${handle}${parts[0] ? `/${parts[0]}` : ""}`;
+      url.pathname = `/s/${handle}${parts.length ? `/${parts.join("/")}` : ""}`;
       return NextResponse.rewrite(url);
     }
     // Everything else (dashboard, login, ...) lives on the main domain.

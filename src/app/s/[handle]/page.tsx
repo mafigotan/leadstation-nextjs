@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { userUrl } from "@/lib/site";
+import { blogUrl, userUrl } from "@/lib/site";
 import type { PageContent } from "@/lib/types";
 
 async function load(handle: string) {
@@ -36,7 +36,10 @@ export default async function UserHome({ params }: { params: Promise<{ handle: s
     <main className="min-h-screen bg-slate-50">
       <div className="mx-auto max-w-3xl px-4 py-16">
         <h1 className="text-3xl font-bold">{profile.display_name || profile.handle}</h1>
-        <p className="mt-2 text-slate-500">진행 중인 이벤트와 프로모션</p>
+        <p className="mt-2 text-slate-500">
+          진행 중인 이벤트와 프로모션 ·{" "}
+          <Link href={blogUrl(profile.handle)} className="text-indigo-600 hover:underline">블로그</Link>
+        </p>
         {pages.length === 0 ? (
           <p className="card mt-10 p-10 text-center text-slate-500">지금 진행 중인 프로모션이 없어요.</p>
         ) : (

@@ -102,3 +102,10 @@ supabase/migrations         DB 스키마와 RLS 정책
 - 요금제와 결제, 유저별 페이지
 - Neo AI Writer
 - 뉴스레터: 사용량 통계와 월 한도
+
+### Neo AI Writer (AI 글쓰기)
+
+1. Supabase SQL Editor에서 `supabase/migrations/0004_ai_writer.sql` 내용을 실행해요.
+2. 대시보드 > AI 글쓰기에서 키워드를 넣고 개요를 만든 뒤 본문을 생성해요. 본문 생성에는 1~3분이 걸려요.
+3. 편집기에서 블록(문단, 표, 단계, 장단점 등)을 고치고, 문단은 AI로 다시 쓰고, 이미지는 AI로 만들 수 있어요 (OPENAI_API_KEY 필요).
+4. 발행한 글은 `https://handle.leadstation.kr/blog/slug`에 SEO 메타 태그와 구조화 데이터(BlogPosting, FAQPage)와 함께 올라가요.
