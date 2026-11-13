@@ -8,16 +8,16 @@ import { plain, type Article } from "@/lib/writer/types";
 
 async function load(handle: string, slug: string) {
   const supabase = await createClient();
-  const { data: profile } = await supabase.from("profiles").select("user_id, handle, display_name").eq("handle", handle.toLowerCase()).maybeSingle();
-  if (!profile) return null;
-  // RLS: published posts for everyone, drafts only for their owner (preview on the main domain).
+  const { data: site } = await supabase.from("sites").select("id, handle, name").eq("handle", handle.toLowerCase()).maybeSingle();
+  if (!site) return null;
+  // RLS: published posts for everyone, drafts only for the site members (preview on the main domain).
   const { data: article } = await supabase
     .from("articles")
     .select("*")
-    .eq("user_id", profile.user_id)
+    .eq("site_id", site.id)
     .eq("slug", slug.toLowerCase())
     .maybeSingle<Article>();
-  return article ? { profile, article } : null;
+  return article ? { site, article } : null;
 }
 
 type Params = { params: Promise<{ handle: string; slug: string }> };
@@ -26,8 +26,8 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { handle, slug } = await params;
   const data = await load(handle, slug);
   if (!data) return {};
-  const { article: a, profile } = data;
-  const url = blogUrl(profile.handle, a.slug);
+  const { article: a, site } = data;
+  const url = blogUrl(site.handle, a.slug);
   const images = a.header_image?.url ? [{ url: a.header_image.url, alt: a.header_image.alt }] : undefined;
   return {
     title: a.seo_title || a.title,
@@ -44,8 +44,8 @@ export default async function BlogPost({ params }: Params) {
   const { handle, slug } = await params;
   const data = await load(handle, slug);
   if (!data) notFound();
-  const { article: a, profile } = data;
-  const name = profile.display_name || profile.handle;
+  const { article: a, site } = data;
+  const name = site.name || site.handle;
   const lang = a.brief?.language === "en" ? "en" : "ko";
 
   const jsonLd: object[] = [
@@ -58,7 +58,7 @@ export default async function BlogPost({ params }: Params) {
       datePublished: a.published_at ?? a.created_at,
       dateModified: a.updated_at,
       author: { "@type": "Organization", name },
-      mainEntityOfPage: blogUrl(profile.handle, a.slug),
+      mainEntityOfPage: blogUrl(site.handle, a.slug),
       keywords: a.tags.join(", "),
     },
   ];
@@ -77,8 +77,8 @@ export default async function BlogPost({ params }: Params) {
       )}
       <header className="border-b border-slate-100">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
-          <Link href={userUrl(profile.handle)} className="font-bold">{name}</Link>
-          <Link href={blogUrl(profile.handle)} className="text-sm text-slate-500 hover:underline">블로그 목록</Link>
+          <Link href={userUrl(site.handle)} className="font-bold">{name}</Link>
+          <Link href={blogUrl(site.handle)} className="text-sm text-slate-500 hover:underline">블로그 목록</Link>
         </div>
       </header>
       <div className="mx-auto max-w-3xl px-4 py-12">

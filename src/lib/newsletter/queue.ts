@@ -30,13 +30,13 @@ export function unsubscribeUrl(token: string) {
 }
 
 /** Subscribed recipients for an audience. Direct-input addresses are saved as recipients first. */
-export async function buildAudience(supabase: SupabaseClient, userId: string, spec: AudienceSpec): Promise<Target[]> {
+export async function buildAudience(supabase: SupabaseClient, siteId: string, spec: AudienceSpec): Promise<Target[]> {
   const cols = "id, email, name, unsub_token, status";
   let rows: { id: string; email: string; name: string; unsub_token: string; status: string }[] = [];
 
   if (spec.mode === "all") {
     for (let from = 0; ; from += 1000) {
-      const { data } = await supabase.from("recipients").select(cols).eq("user_id", userId).range(from, from + 999);
+      const { data } = await supabase.from("recipients").select(cols).eq("site_id", siteId).range(from, from + 999);
       rows.push(...(data ?? []));
       if (!data || data.length < 1000) break;
     }
@@ -56,15 +56,15 @@ export async function buildAudience(supabase: SupabaseClient, userId: string, sp
     if (!spec.emails.length) return [];
     await supabase
       .from("recipients")
-      .upsert(spec.emails.map((email) => ({ user_id: userId, email, source: "manual" })), {
-        onConflict: "user_id,email",
+      .upsert(spec.emails.map((email) => ({ site_id: siteId, email, source: "manual" })), {
+        onConflict: "site_id,email",
         ignoreDuplicates: true,
       });
     for (let i = 0; i < spec.emails.length; i += 500) {
       const { data } = await supabase
         .from("recipients")
         .select(cols)
-        .eq("user_id", userId)
+        .eq("site_id", siteId)
         .in("email", spec.emails.slice(i, i + 500));
       rows.push(...(data ?? []));
     }
@@ -75,11 +75,11 @@ export async function buildAudience(supabase: SupabaseClient, userId: string, sp
   return rows.map((r) => ({ recipient_id: r.id, email: r.email, name: r.name, unsub_token: r.unsub_token }));
 }
 
-export async function getSettings(supabase: SupabaseClient, userId: string): Promise<SenderSettings> {
+export async function getSettings(supabase: SupabaseClient, siteId: string): Promise<SenderSettings> {
   const { data } = await supabase
     .from("newsletter_settings")
     .select("from_name, reply_to, footer_text, logo_url, accent_color, brand_context")
-    .eq("user_id", userId)
+    .eq("site_id", siteId)
     .maybeSingle();
   return {
     from_name: data?.from_name ?? "",
@@ -104,7 +104,7 @@ export async function createCampaign(
   const { data: campaign, error } = await supabase
     .from("campaigns")
     .insert({
-      user_id: nl.user_id,
+      site_id: nl.site_id,
       newsletter_id: nl.id,
       type,
       subject: nl.subject || nl.title,
@@ -124,7 +124,7 @@ export async function createCampaign(
     const { error: logError } = await supabase.from("send_logs").insert(
       targets.slice(i, i + 1000).map((t) => ({
         campaign_id: campaign.id,
-        user_id: nl.user_id,
+        site_id: nl.site_id,
         recipient_id: t.recipient_id,
         email: t.email,
         name: t.name,

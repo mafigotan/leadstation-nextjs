@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/supabase/server";
+import { requireSite } from "@/lib/supabase/server";
 import { queryLeads } from "@/lib/leads";
 import { deleteLead } from "./actions";
 
@@ -10,10 +10,10 @@ export default async function LeadsPage({
   searchParams: Promise<{ page?: string; q?: string }>;
 }) {
   const { page: pageId, q } = await searchParams;
-  const { supabase } = await requireUser();
+  const { supabase, site } = await requireSite();
 
   const [{ data: pages }, leads] = await Promise.all([
-    supabase.from("pages").select("id, title").order("created_at", { ascending: false }),
+    supabase.from("pages").select("id, title").eq("site_id", site.id).order("created_at", { ascending: false }),
     queryLeads(supabase, { pageId, q }),
   ]);
 

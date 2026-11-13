@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireUser } from "@/lib/supabase/server";
+import { requireSite } from "@/lib/supabase/server";
 import { RecipientsTable } from "./recipients-table";
 import { ImportPanel } from "./import-panel";
 import { GroupsPanel } from "./groups-panel";
@@ -17,7 +17,7 @@ export default async function RecipientsPage({
 }) {
   const { q, status, group, page } = await searchParams;
   const pageNo = Math.max(1, Number(page) || 1);
-  const { supabase } = await requireUser();
+  const { supabase } = await requireSite();
 
   const { data: groups } = await supabase.from("recipient_groups").select("id, name, recipient_group_members(count)").order("name");
 

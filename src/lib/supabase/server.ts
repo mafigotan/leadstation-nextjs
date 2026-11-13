@@ -39,19 +39,43 @@ export async function requireUser() {
   return { supabase, user: user! };
 }
 
-export type Profile = { user_id: string; handle: string; display_name: string };
+export type Profile = { user_id: string; full_name: string; phone: string; company: string; active_site_id: string | null };
+export type Site = { id: string; handle: string; name: string };
+export type SiteRole = "admin" | "member";
+export type Membership = { role: SiteRole; site: Site };
 
-/** Signed-in user plus their profile; redirects to /welcome when the address is not set yet. */
-export async function requireProfile() {
+/** The signed-in user's profile and the sites they belong to. */
+export async function loadAccount() {
   const { supabase, user } = await requireUser();
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("user_id, handle, display_name")
-    .eq("user_id", user.id)
-    .maybeSingle<Profile>();
-  if (!profile) {
-    const { redirect } = await import("next/navigation");
-    redirect("/welcome");
+  const [{ data: profile }, { data: rows }] = await Promise.all([
+    supabase.from("profiles").select("user_id, full_name, phone, company, active_site_id").eq("user_id", user.id).maybeSingle<Profile>(),
+    supabase.from("site_members").select("role, sites(id, handle, name)").eq("user_id", user.id).order("created_at"),
+  ]);
+  const memberships = ((rows ?? []) as unknown as { role: SiteRole; sites: Site | null }[])
+    .filter((r) => r.sites)
+    .map((r) => ({ role: r.role, site: r.sites! }));
+  return { supabase, user, profile: profile ?? null, memberships };
+}
+
+/**
+ * Signed-in user, their profile and the site they are working on (with their role there).
+ * Redirects to /welcome until the profile is filled in and the user belongs to a site.
+ */
+export async function requireSite() {
+  const { supabase, user, profile, memberships } = await loadAccount();
+  const { redirect } = await import("next/navigation");
+  if (!profile || !profile.full_name || !memberships.length) redirect("/welcome");
+  let current = memberships.find((m) => m.site.id === profile!.active_site_id);
+  if (!current) {
+    current = memberships[0];
+    await supabase.from("profiles").update({ active_site_id: current.site.id }).eq("user_id", user.id);
   }
-  return { supabase, user, profile: profile! };
+  return { supabase, user, profile: profile!, site: current.site, role: current.role, memberships };
+}
+
+/** Same as requireSite but only for site admins. */
+export async function requireSiteAdmin() {
+  const ctx = await requireSite();
+  if (ctx.role !== "admin") throw new Error("사이트 관리자만 할 수 있어요.");
+  return ctx;
 }

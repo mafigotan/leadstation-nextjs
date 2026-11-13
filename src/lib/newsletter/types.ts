@@ -51,6 +51,7 @@ export type Block = {
 export type Newsletter = {
   id: string;
   user_id: string;
+  site_id: string;
   title: string;
   subject: string;
   preheader: string;

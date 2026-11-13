@@ -7,13 +7,13 @@ import { LeadForm } from "@/app/p/[slug]/lead-form";
 
 async function getPage(handle: string, slug: string) {
   const supabase = await createClient();
-  const { data: profile } = await supabase.from("profiles").select("user_id").eq("handle", handle.toLowerCase()).maybeSingle();
-  if (!profile) return null;
-  // RLS returns published pages to everyone, and drafts only to their owner (preview).
+  const { data: site } = await supabase.from("sites").select("id, handle, name").eq("handle", handle.toLowerCase()).maybeSingle();
+  if (!site) return null;
+  // RLS returns published pages to everyone, and drafts only to the site members (preview).
   const { data } = await supabase
     .from("pages")
     .select("*")
-    .eq("user_id", profile.user_id)
+    .eq("site_id", site.id)
     .eq("slug", slug.toLowerCase())
     .maybeSingle<PageRow>();
   return data;

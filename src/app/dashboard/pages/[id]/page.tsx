@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireProfile } from "@/lib/supabase/server";
+import { requireSite } from "@/lib/supabase/server";
 import { mainDomainUrl, userUrl } from "@/lib/site";
 import type { PageRow } from "@/lib/types";
 import { deletePage, setPublished } from "../actions";
@@ -14,11 +14,12 @@ export default async function EditPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { supabase, user, profile } = await requireProfile();
+  const { supabase, user, site } = await requireSite();
   const { data: page } = await supabase
     .from("pages")
     .select("*")
     .eq("id", id)
+    .eq("site_id", site.id)
     .single<PageRow>();
   if (!page) notFound();
 
@@ -27,7 +28,7 @@ export default async function EditPage({
     .select("id", { count: "exact", head: true })
     .eq("page_id", id);
 
-  const publicUrl = userUrl(profile.handle, page.slug);
+  const publicUrl = userUrl(site.handle, page.slug);
   const published = page.status === "published";
 
   return (
@@ -47,7 +48,7 @@ export default async function EditPage({
         </span>
         <a
           href={
-            published ? publicUrl : mainDomainUrl(profile.handle, page.slug)
+            published ? publicUrl : mainDomainUrl(site.handle, page.slug)
           }
           target="_blank"
           className="text-sm text-indigo-600 hover:underline"
@@ -84,7 +85,7 @@ export default async function EditPage({
                 href={
                   published
                     ? publicUrl
-                    : mainDomainUrl(profile.handle, page.slug)
+                    : mainDomainUrl(site.handle, page.slug)
                 }
                 target="_blank"
                 className="btn-secondary w-full"

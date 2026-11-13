@@ -1,14 +1,15 @@
 import Link from "next/link";
-import { requireProfile } from "@/lib/supabase/server";
+import { requireSite } from "@/lib/supabase/server";
 import { userUrl } from "@/lib/site";
 
 export const metadata = { title: "프로모션 페이지 | LEADstation" };
 
 export default async function PagesList() {
-  const { supabase, profile } = await requireProfile();
+  const { supabase, site } = await requireSite();
   const { data: pages } = await supabase
     .from("pages")
     .select("id, title, slug, status, created_at, leads(count)")
+    .eq("site_id", site.id)
     .order("created_at", { ascending: false });
 
   return (
@@ -39,7 +40,7 @@ export default async function PagesList() {
                 <div className="min-w-0">
                   <p className="truncate font-medium">{p.title}</p>
                   <p className="text-xs text-slate-500">
-                    {new Date(p.created_at).toLocaleDateString("ko-KR")} · {userUrl(profile.handle, p.slug).replace(/^https?:\/\//, "")}
+                    {new Date(p.created_at).toLocaleDateString("ko-KR")} · {userUrl(site.handle, p.slug).replace(/^https?:\/\//, "")}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-3 text-sm">

@@ -1,14 +1,15 @@
 import Link from "next/link";
-import { requireProfile } from "@/lib/supabase/server";
+import { requireSite } from "@/lib/supabase/server";
 import { blogUrl } from "@/lib/site";
 
 export const metadata = { title: "AI 글쓰기 | LEADstation" };
 
 export default async function WriterPage() {
-  const { supabase, profile } = await requireProfile();
+  const { supabase, site } = await requireSite();
   const { data: articles } = await supabase
     .from("articles")
     .select("id, title, keyword, slug, status, updated_at")
+    .eq("site_id", site.id)
     .order("updated_at", { ascending: false });
 
   return (
@@ -18,8 +19,8 @@ export default async function WriterPage() {
           <h1 className="text-2xl font-bold">AI 글쓰기</h1>
           <p className="mt-1 text-sm text-slate-500">
             키워드만 넣으면 AI가 SEO에 맞춘 블로그 글을 써요. 발행한 글은{" "}
-            <a href={blogUrl(profile.handle)} target="_blank" className="text-indigo-600 hover:underline">
-              {blogUrl(profile.handle).replace(/^https?:\/\//, "")}
+            <a href={blogUrl(site.handle)} target="_blank" className="text-indigo-600 hover:underline">
+              {blogUrl(site.handle).replace(/^https?:\/\//, "")}
             </a>
             에 올라가요.
           </p>
@@ -50,7 +51,7 @@ export default async function WriterPage() {
                   {a.status === "published" ? "발행됨" : "초안"}
                 </span>
                 {a.status === "published" && (
-                  <a href={blogUrl(profile.handle, a.slug)} target="_blank" className="text-sm font-medium text-indigo-600 hover:underline">보기</a>
+                  <a href={blogUrl(site.handle, a.slug)} target="_blank" className="text-sm font-medium text-indigo-600 hover:underline">보기</a>
                 )}
               </div>
             </div>

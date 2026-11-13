@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/supabase/server";
+import { requireSite } from "@/lib/supabase/server";
 import { siteUrl } from "@/lib/slug";
 import { generateNewsletter } from "@/lib/newsletter/ai";
 import { sendOne } from "@/lib/newsletter/mailer";
@@ -53,17 +53,17 @@ function cleanDraft(input: DraftInput) {
 }
 
 async function loadNewsletter(id: string) {
-  const { supabase, user } = await requireUser();
+  const { supabase, user, site } = await requireSite();
   const { data } = await supabase.from("newsletters").select("*").eq("id", id).single<Newsletter>();
   if (!data) throw new Error("뉴스레터를 찾을 수 없어요.");
-  return { supabase, user, nl: data };
+  return { supabase, user, site, nl: data };
 }
 
 export async function createNewsletter() {
-  const { supabase, user } = await requireUser();
+  const { supabase, user, site } = await requireSite();
   const { data, error } = await supabase
     .from("newsletters")
-    .insert({ user_id: user.id, title: "새 뉴스레터" })
+    .insert({ site_id: site.id, user_id: user.id, title: "새 뉴스레터" })
     .select("id")
     .single();
   if (error || !data) throw new Error("뉴스레터를 만들지 못했어요.");
@@ -71,7 +71,7 @@ export async function createNewsletter() {
 }
 
 export async function saveNewsletter(id: string, input: DraftInput) {
-  const { supabase } = await requireUser();
+  const { supabase } = await requireSite();
   const draft = cleanDraft(input);
   const { error } = await supabase
     .from("newsletters")
@@ -83,11 +83,11 @@ export async function saveNewsletter(id: string, input: DraftInput) {
 }
 
 export async function generateWithAi(id: string, input: DraftInput, mode: "new" | "edit") {
-  const { supabase, user, nl } = await loadNewsletter(id);
+  const { supabase, site, nl } = await loadNewsletter(id);
   const draft = cleanDraft(input);
   if (!draft.topic.trim()) return { error: "이메일 내용을 입력해 주세요." };
 
-  const settings = await getSettings(supabase, user.id);
+  const settings = await getSettings(supabase, site.id);
   try {
     const result = await generateNewsletter({
       topic: draft.topic,
@@ -124,11 +124,11 @@ export async function restorePrevious(id: string) {
 }
 
 export async function duplicateNewsletter(id: string) {
-  const { supabase, user, nl } = await loadNewsletter(id);
+  const { supabase, user, site, nl } = await loadNewsletter(id);
   const { data } = await supabase
     .from("newsletters")
     .insert({
-      user_id: user.id,
+      site_id: site.id, user_id: user.id,
       title: `${nl.title} (복사본)`,
       subject: nl.subject,
       preheader: nl.preheader,
@@ -146,7 +146,7 @@ export async function duplicateNewsletter(id: string) {
 }
 
 export async function deleteNewsletter(id: string) {
-  const { supabase } = await requireUser();
+  const { supabase } = await requireSite();
   const { count } = await supabase
     .from("campaigns")
     .select("id", { count: "exact", head: true })
@@ -159,11 +159,11 @@ export async function deleteNewsletter(id: string) {
 }
 
 export async function sendTest(id: string, rawEmails: string) {
-  const { supabase, user, nl } = await loadNewsletter(id);
+  const { supabase, site, nl } = await loadNewsletter(id);
   const emails = parseEmails(rawEmails).slice(0, 5);
   if (!emails.length) return { error: "받을 이메일 주소를 입력해 주세요." };
   if (!nl.blocks.length) return { error: "본문이 비어 있어요." };
-  const settings = await getSettings(supabase, user.id);
+  const settings = await getSettings(supabase, site.id);
   const html = personalize(renderNewsletter(nl, settings, { placeholders: true, siteUrl: siteUrl() }), "테스트", `${siteUrl()}/`);
   try {
     for (const to of emails) {
@@ -189,26 +189,26 @@ function toSpec(req: SendRequest): AudienceSpec {
 }
 
 export async function previewAudience(req: SendRequest) {
-  const { supabase, user } = await requireUser();
+  const { supabase, site } = await requireSite();
   const spec = toSpec(req);
   if (spec.mode === "emails") {
     // Count without saving the addresses yet.
     const { data: blocked } = await supabase
       .from("recipients")
       .select("email")
-      .eq("user_id", user.id)
+      .eq("site_id", site.id)
       .eq("status", "unsubscribed")
       .in("email", spec.emails.slice(0, 1000));
     const b = new Set((blocked ?? []).map((r) => r.email));
     const list = spec.emails.filter((e) => !b.has(e));
     return { count: list.length, sample: list.slice(0, 20), skipped: b.size };
   }
-  const targets = await buildAudience(supabase, user.id, spec);
+  const targets = await buildAudience(supabase, site.id, spec);
   return { count: targets.length, sample: targets.slice(0, 20).map((t) => t.email), skipped: 0 };
 }
 
 export async function startSend(id: string, req: SendRequest) {
-  const { supabase, user, nl } = await loadNewsletter(id);
+  const { supabase, site, nl } = await loadNewsletter(id);
   if (!nl.blocks.length) return { error: "본문이 비어 있어요. 먼저 뉴스레터를 작성해 주세요." };
   if (!nl.subject.trim()) return { error: "이메일 제목을 입력해 주세요." };
 
@@ -224,10 +224,10 @@ export async function startSend(id: string, req: SendRequest) {
   }
 
   const spec = toSpec(req);
-  const targets = await buildAudience(supabase, user.id, spec);
+  const targets = await buildAudience(supabase, site.id, spec);
   if (!targets.length) return { error: "보낼 수신자가 없어요. 수신 거부한 주소는 제외돼요." };
 
-  const settings = await getSettings(supabase, user.id);
+  const settings = await getSettings(supabase, site.id);
   try {
     const campaignId = await createCampaign(supabase, nl, settings, targets, spec, scheduledAt);
     revalidatePath(`/dashboard/newsletters/${id}/send`);
@@ -238,13 +238,13 @@ export async function startSend(id: string, req: SendRequest) {
 }
 
 export async function continueSend(campaignId: string) {
-  const { supabase } = await requireUser();
+  const { supabase } = await requireSite();
   const counts = await processCampaign(supabase, campaignId, 20000);
   return counts;
 }
 
 export async function cancelCampaign(campaignId: string) {
-  const { supabase } = await requireUser();
+  const { supabase } = await requireSite();
   const { data: c } = await supabase.from("campaigns").select("newsletter_id, status").eq("id", campaignId).single();
   if (!c || c.status !== "scheduled") return { error: "예약 상태인 발송만 취소할 수 있어요." };
   await supabase.from("campaigns").update({ status: "canceled" }).eq("id", campaignId);
@@ -260,7 +260,7 @@ export async function cancelCampaign(campaignId: string) {
 }
 
 export async function resendFailed(campaignId: string) {
-  const { supabase, user } = await requireUser();
+  const { supabase, site } = await requireSite();
   const { data: c } = await supabase.from("campaigns").select("newsletter_id").eq("id", campaignId).single();
   if (!c) return { error: "발송 기록을 찾을 수 없어요." };
   const { data: failed } = await supabase
@@ -274,14 +274,14 @@ export async function resendFailed(campaignId: string) {
   const { data: nl } = await supabase.from("newsletters").select("*").eq("id", c.newsletter_id).single<Newsletter>();
   if (!nl) return { error: "뉴스레터를 찾을 수 없어요." };
   const spec: AudienceSpec = { mode: "emails", emails };
-  const targets = await buildAudience(supabase, user.id, spec);
-  const settings = await getSettings(supabase, user.id);
+  const targets = await buildAudience(supabase, site.id, spec);
+  const settings = await getSettings(supabase, site.id);
   const id = await createCampaign(supabase, nl, settings, targets, spec, null, "resend");
   return { ok: true, campaignId: id, total: targets.length };
 }
 
 export async function saveSettings(_: unknown, formData: FormData) {
-  const { supabase, user } = await requireUser();
+  const { supabase, user, site } = await requireSite();
   const s = (k: string, max: number) => String(formData.get(k) ?? "").trim().slice(0, max);
   const accent = s("accent_color", 7);
   const replyTo = s("reply_to", 200);
@@ -289,7 +289,7 @@ export async function saveSettings(_: unknown, formData: FormData) {
   const logo = s("logo_url", 1000);
   if (logo && !/^https:\/\//.test(logo)) return { error: "로고 주소는 https:// 로 시작해야 해요." };
   const { error } = await supabase.from("newsletter_settings").upsert({
-    user_id: user.id,
+    site_id: site.id, user_id: user.id,
     from_name: s("from_name", 80),
     reply_to: replyTo,
     footer_text: s("footer_text", 1000),

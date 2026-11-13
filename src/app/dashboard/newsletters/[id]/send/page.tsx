@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireUser } from "@/lib/supabase/server";
+import { requireSite } from "@/lib/supabase/server";
 import { SendPanel } from "./send-panel";
 
 export const maxDuration = 60;
 
 export default async function SendPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { supabase } = await requireUser();
+  const { supabase } = await requireSite();
   const { data: nl } = await supabase.from("newsletters").select("id, title, subject, status, blocks").eq("id", id).single();
   if (!nl) notFound();
 

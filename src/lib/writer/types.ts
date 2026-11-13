@@ -71,6 +71,7 @@ export type HeaderImage = { url: string; alt: string; prompt: string };
 export type Article = {
   id: string;
   user_id: string;
+  site_id: string;
   status: "draft" | "published";
   slug: string;
   title: string;

@@ -1,13 +1,13 @@
 import Link from "next/link";
-import { requireUser } from "@/lib/supabase/server";
+import { requireSite } from "@/lib/supabase/server";
 import { getSettings } from "@/lib/newsletter/queue";
 import { SettingsForm } from "./settings-form";
 
 export const metadata = { title: "발신 정보 | LEADstation" };
 
 export default async function SettingsPage() {
-  const { supabase, user } = await requireUser();
-  const settings = await getSettings(supabase, user.id);
+  const { supabase, user, site } = await requireSite();
+  const settings = await getSettings(supabase, site.id);
   return (
     <div className="mx-auto max-w-2xl">
       <Link href="/dashboard/newsletters" className="text-sm text-slate-500 hover:underline">← 뉴스레터 목록</Link>

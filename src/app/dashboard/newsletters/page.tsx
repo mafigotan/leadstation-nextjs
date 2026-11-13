@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireUser } from "@/lib/supabase/server";
+import { requireSite } from "@/lib/supabase/server";
 import { createNewsletter } from "./actions";
 
 export const metadata = { title: "AI 뉴스레터 | LEADstation" };
@@ -13,7 +13,7 @@ const STATUS: Record<string, [string, string]> = {
 };
 
 export default async function NewslettersPage() {
-  const { supabase } = await requireUser();
+  const { supabase } = await requireSite();
   const [{ data: newsletters }, { count: subscribers }] = await Promise.all([
     supabase.from("newsletters").select("id, title, subject, status, updated_at, sent_at").order("updated_at", { ascending: false }),
     supabase.from("recipients").select("id", { count: "exact", head: true }).eq("status", "subscribed"),

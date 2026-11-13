@@ -37,6 +37,7 @@ export type Brief = z.infer<typeof BriefSchema>;
 export type PageRow = {
   id: string;
   user_id: string;
+  site_id: string;
   title: string;
   slug: string;
   status: "draft" | "published";

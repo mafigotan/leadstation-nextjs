@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/supabase/server";
+import { requireSite } from "@/lib/supabase/server";
 import { generatePageContent } from "@/lib/ai/generate-page";
 import { makeSlug } from "@/lib/slug";
 import { SLUG_RE } from "@/lib/site";
@@ -12,7 +12,7 @@ import { BriefSchema, THEMES, type PageContent, type Theme } from "@/lib/types";
 export type FormState = { error?: string; saved?: boolean };
 
 export async function createPage(_: FormState, formData: FormData): Promise<FormState> {
-  const { supabase, user } = await requireUser();
+  const { supabase, user, site } = await requireSite();
 
   const parsed = BriefSchema.safeParse({
     product: formData.get("product"),
@@ -34,7 +34,7 @@ export async function createPage(_: FormState, formData: FormData): Promise<Form
   const { data, error } = await supabase
     .from("pages")
     .insert({
-      user_id: user.id,
+      site_id: site.id, user_id: user.id,
       title: parsed.data.product,
       slug: makeSlug(),
       brief: parsed.data,
@@ -52,7 +52,7 @@ export async function createPage(_: FormState, formData: FormData): Promise<Form
 }
 
 export async function setPublished(id: string, published: boolean) {
-  const { supabase } = await requireUser();
+  const { supabase } = await requireSite();
   await supabase
     .from("pages")
     .update({ status: published ? "published" : "draft" })
@@ -62,14 +62,14 @@ export async function setPublished(id: string, published: boolean) {
 }
 
 export async function deletePage(id: string) {
-  const { supabase } = await requireUser();
+  const { supabase } = await requireSite();
   await supabase.from("pages").delete().eq("id", id);
   revalidatePath("/dashboard/pages");
   redirect("/dashboard/pages");
 }
 
 export async function updateSlug(id: string, _: FormState, formData: FormData): Promise<FormState> {
-  const { supabase } = await requireUser();
+  const { supabase } = await requireSite();
   const slug = String(formData.get("slug") ?? "").trim().toLowerCase();
   if (!SLUG_RE.test(slug)) return { error: "영문 소문자, 숫자, 하이픈(-)으로 1~50자로 정해주세요." };
   if (slug === "blog") return { error: "blog는 블로그 주소로 쓰여서 사용할 수 없어요." };
@@ -84,8 +84,8 @@ export async function savePageSections(
   id: string,
   input: { title: string; theme: string; sections: unknown },
 ): Promise<{ error?: string }> {
-  const { supabase } = await requireUser();
-  const { data: page } = await supabase.from("pages").select("content").eq("id", id).single();
+  const { supabase, site } = await requireSite();
+  const { data: page } = await supabase.from("pages").select("content").eq("id", id).eq("site_id", site.id).single();
   if (!page) return { error: "페이지를 찾을 수 없어요." };
   const sections = sanitizeSections(input.sections);
   const theme = (THEMES as readonly string[]).includes(input.theme) ? (input.theme as Theme) : "indigo";

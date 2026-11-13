@@ -7,36 +7,36 @@ import type { HeaderImage } from "@/lib/writer/types";
 
 async function load(handle: string) {
   const supabase = await createClient();
-  const { data: profile } = await supabase.from("profiles").select("user_id, handle, display_name").eq("handle", handle.toLowerCase()).maybeSingle();
-  if (!profile) return null;
+  const { data: site } = await supabase.from("sites").select("id, handle, name").eq("handle", handle.toLowerCase()).maybeSingle();
+  if (!site) return null;
   const { data } = await supabase
     .from("articles")
     .select("slug, title, meta_description, header_image, published_at, tags")
-    .eq("user_id", profile.user_id)
+    .eq("site_id", site.id)
     .eq("status", "published")
     .order("published_at", { ascending: false })
     .limit(100);
-  return { profile, posts: (data ?? []) as { slug: string; title: string; meta_description: string; header_image: Partial<HeaderImage>; published_at: string; tags: string[] }[] };
+  return { site, posts: (data ?? []) as { slug: string; title: string; meta_description: string; header_image: Partial<HeaderImage>; published_at: string; tags: string[] }[] };
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ handle: string }> }): Promise<Metadata> {
   const data = await load((await params).handle);
   if (!data) return {};
-  const name = data.profile.display_name || data.profile.handle;
-  return { title: `${name} 블로그`, alternates: { canonical: blogUrl(data.profile.handle) } };
+  const name = data.site.name || data.site.handle;
+  return { title: `${name} 블로그`, alternates: { canonical: blogUrl(data.site.handle) } };
 }
 
 export default async function BlogIndex({ params }: { params: Promise<{ handle: string }> }) {
   const data = await load((await params).handle);
   if (!data) notFound();
-  const { profile, posts } = data;
-  const name = profile.display_name || profile.handle;
+  const { site, posts } = data;
+  const name = site.name || site.handle;
 
   return (
     <main className="min-h-screen bg-white">
       <header className="border-b border-slate-100">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
-          <Link href={userUrl(profile.handle)} className="font-bold">{name}</Link>
+          <Link href={userUrl(site.handle)} className="font-bold">{name}</Link>
           <span className="text-sm text-slate-500">블로그</span>
         </div>
       </header>
@@ -47,7 +47,7 @@ export default async function BlogIndex({ params }: { params: Promise<{ handle: 
         ) : (
           <div className="mt-10 grid gap-8 sm:grid-cols-2">
             {posts.map((p) => (
-              <Link key={p.slug} href={blogUrl(profile.handle, p.slug)} className="group block">
+              <Link key={p.slug} href={blogUrl(site.handle, p.slug)} className="group block">
                 {p.header_image?.url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={p.header_image.url} alt={p.header_image.alt ?? ""} className="aspect-[3/2] w-full rounded-xl object-cover" loading="lazy" />

@@ -1,19 +1,19 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/supabase/server";
+import { requireSite } from "@/lib/supabase/server";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const s = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
 export type RecipientInput = { email: string; name?: string; phone?: string; company?: string; memo?: string; group?: string };
 
-async function resolveGroups(supabase: Awaited<ReturnType<typeof requireUser>>["supabase"], userId: string, names: string[]) {
+async function resolveGroups(supabase: Awaited<ReturnType<typeof requireSite>>["supabase"], siteId: string, names: string[]) {
   const unique = [...new Set(names.map((n) => n.trim()).filter(Boolean))].slice(0, 200);
   if (!unique.length) return new Map<string, string>();
   await supabase.from("recipient_groups").upsert(
-    unique.map((name) => ({ user_id: userId, name: name.slice(0, 100) })),
-    { onConflict: "user_id,name", ignoreDuplicates: true },
+    unique.map((name) => ({ site_id: siteId, name: name.slice(0, 100) })),
+    { onConflict: "site_id,name", ignoreDuplicates: true },
   );
   const { data } = await supabase.from("recipient_groups").select("id, name").in("name", unique);
   return new Map((data ?? []).map((g) => [g.name, g.id]));
@@ -21,7 +21,7 @@ async function resolveGroups(supabase: Awaited<ReturnType<typeof requireUser>>["
 
 /** Adds or updates recipients. `overwrite` updates name/phone/company/memo of existing addresses. */
 export async function importRecipients(rows: RecipientInput[], groupId: string | null, overwrite: boolean, source: "manual" | "import" | "lead" = "import") {
-  const { supabase, user } = await requireUser();
+  const { supabase, user, site } = await requireSite();
   const clean = rows
     .slice(0, 20000)
     .map((r) => ({
@@ -46,10 +46,10 @@ export async function importRecipients(rows: RecipientInput[], groupId: string |
       phone: r.phone,
       company: r.company,
       memo: r.memo,
-      user_id: user.id,
+      site_id: site.id, user_id: user.id,
       source,
     }));
-    const { error } = await supabase.from("recipients").upsert(chunk, { onConflict: "user_id,email", ignoreDuplicates: !overwrite });
+    const { error } = await supabase.from("recipients").upsert(chunk, { onConflict: "site_id,email", ignoreDuplicates: !overwrite });
     if (error) {
       console.error("import recipients failed", error);
       return { error: "저장 중 오류가 발생했어요.", added: 0, updated: 0, invalid };
@@ -60,7 +60,7 @@ export async function importRecipients(rows: RecipientInput[], groupId: string |
 
   // Group membership: the selected group, plus a per-row "group" column.
   const groupNames = list.map((r) => r.group).filter(Boolean);
-  const groupMap = await resolveGroups(supabase, user.id, groupNames);
+  const groupMap = await resolveGroups(supabase, site.id, groupNames);
   if (groupId || groupMap.size) {
     const members: { group_id: string; recipient_id: string }[] = [];
     for (let i = 0; i < list.length; i += 500) {
@@ -85,7 +85,7 @@ export async function importRecipients(rows: RecipientInput[], groupId: string |
 
 /** Copies Lead Collector leads that agreed to marketing into recipients. */
 export async function importLeads(groupName: string) {
-  const { supabase } = await requireUser();
+  const { supabase } = await requireSite();
   const { data: leads } = await supabase
     .from("leads")
     .select("email, name, phone, pages(title)")
@@ -122,7 +122,7 @@ export async function addRecipient(_: unknown, formData: FormData) {
   );
   if (res.error) return res;
   if (groupIds.length) {
-    const { supabase } = await requireUser();
+    const { supabase } = await requireSite();
     const { data } = await supabase
       .from("recipients")
       .select("id")
@@ -135,7 +135,7 @@ export async function addRecipient(_: unknown, formData: FormData) {
 }
 
 export async function bulkAction(ids: string[], action: "delete" | "unsubscribe" | "resubscribe" | "add-group" | "remove-group", groupId?: string) {
-  const { supabase } = await requireUser();
+  const { supabase } = await requireSite();
   const list = ids.slice(0, 5000);
   if (!list.length) return { error: "선택한 수신자가 없어요." };
   if (action === "delete") await supabase.from("recipients").delete().in("id", list);
@@ -152,17 +152,17 @@ export async function bulkAction(ids: string[], action: "delete" | "unsubscribe"
 }
 
 export async function createGroup(name: string) {
-  const { supabase, user } = await requireUser();
+  const { supabase, user, site } = await requireSite();
   const n = s(name, 100);
   if (!n) return { error: "그룹 이름을 입력해 주세요." };
-  const { error } = await supabase.from("recipient_groups").insert({ user_id: user.id, name: n });
+  const { error } = await supabase.from("recipient_groups").insert({ site_id: site.id, user_id: user.id, name: n });
   if (error) return { error: error.code === "23505" ? "같은 이름의 그룹이 있어요." : "그룹을 만들지 못했어요." };
   revalidatePath("/dashboard/recipients");
   return { ok: true };
 }
 
 export async function renameGroup(id: string, name: string) {
-  const { supabase } = await requireUser();
+  const { supabase } = await requireSite();
   const n = s(name, 100);
   if (!n) return { error: "그룹 이름을 입력해 주세요." };
   const { error } = await supabase.from("recipient_groups").update({ name: n }).eq("id", id);
@@ -172,7 +172,7 @@ export async function renameGroup(id: string, name: string) {
 }
 
 export async function deleteGroup(id: string) {
-  const { supabase } = await requireUser();
+  const { supabase } = await requireSite();
   await supabase.from("recipient_groups").delete().eq("id", id);
   revalidatePath("/dashboard/recipients");
   return { ok: true };

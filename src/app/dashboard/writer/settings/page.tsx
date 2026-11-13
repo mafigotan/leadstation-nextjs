@@ -1,13 +1,13 @@
 import Link from "next/link";
-import { requireUser } from "@/lib/supabase/server";
+import { requireSite } from "@/lib/supabase/server";
 import { loadWriterSettings } from "@/lib/writer/settings";
 import { WriterSettingsForm } from "./form";
 
 export const metadata = { title: "글쓰기 설정 | LEADstation" };
 
 export default async function WriterSettingsPage() {
-  const { supabase, user } = await requireUser();
-  const settings = await loadWriterSettings(supabase, user.id);
+  const { supabase, site } = await requireSite();
+  const settings = await loadWriterSettings(supabase, site.id);
   return (
     <div className="mx-auto max-w-2xl">
       <Link href="/dashboard/writer" className="text-sm text-slate-500 hover:underline">← AI 글쓰기</Link>
