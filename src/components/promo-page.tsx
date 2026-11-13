@@ -17,6 +17,10 @@ export function PromoPage({ content, form }: { content: PageContent; form: React
           <a href="#signup" className={`mt-8 inline-flex rounded-lg px-6 py-3 font-semibold text-white shadow ${theme.bg}`}>
             {content.cta_label}
           </a>
+          {content.hero_image && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={content.hero_image} alt={content.headline} className="mx-auto mt-10 w-full max-w-3xl rounded-2xl shadow-lg" />
+          )}
         </div>
       </section>
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { ImageField } from "@/components/image-field";
 import { updatePage, type FormState } from "../actions";
 import { THEMES, type PageContent } from "@/lib/types";
 
@@ -12,8 +13,9 @@ const THEME_LABELS: Record<string, string> = {
   slate: "슬레이트",
 };
 
-export function PageEditor({ id, title, content }: { id: string; title: string; content: PageContent }) {
+export function PageEditor({ id, title, content, userId }: { id: string; title: string; content: PageContent; userId: string }) {
   const [state, action, pending] = useActionState<FormState, FormData>(updatePage.bind(null, id), {});
+  const [hero, setHero] = useState(content.hero_image ?? "");
 
   return (
     <form action={action} className="card space-y-5 p-6">
@@ -28,6 +30,12 @@ export function PageEditor({ id, title, content }: { id: string; title: string; 
             ))}
           </select>
         </div>
+      </div>
+      <div>
+        <span className="label">대표 이미지 (선택)</span>
+        <input type="hidden" name="hero_image" value={hero} />
+        <ImageField userId={userId} value={hero} onChange={setHero} context={content.headline} ratio="2:1" />
+        <p className="mt-1 text-xs text-slate-500">헤드라인 아래에 크게 보여요. 저장을 눌러야 페이지에 반영돼요.</p>
       </div>
       <Field label="헤드라인" name="headline" defaultValue={content.headline} />
       <Field label="서브 헤드라인" name="subheadline" defaultValue={content.subheadline} textarea rows={2} />

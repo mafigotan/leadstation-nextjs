@@ -1,18 +1,12 @@
 import "server-only";
-
-export const IMAGE_STYLES = {
-  photo: ["사진", "Style: realistic, high-quality editorial photograph with natural lighting."],
-  illustration: ["일러스트", "Style: clean modern digital illustration, flat or soft-shaded, harmonious colors."],
-  cartoon: ["만화", "Style: friendly cartoon / comic illustration with bold outlines and expressive characters."],
-  infographic: ["인포그래픽", "Style: simple infographic layout with icons, charts and clear visual hierarchy; use minimal text."],
-} as const;
-export type ImageStyle = keyof typeof IMAGE_STYLES;
+import sharp from "sharp";
+import { IMAGE_RATIOS, IMAGE_STYLES, type ImageRatio, type ImageStyle } from "./options";
 
 async function request(model: string, prompt: string, size: string) {
   const res = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model, prompt, n: 1, size, quality: "medium", output_format: "jpeg" }),
+    body: JSON.stringify({ model, prompt, n: 1, size, quality: "medium", output_format: "png" }),
   });
   const json = (await res.json().catch(() => ({}))) as {
     data?: { b64_json?: string }[];
@@ -21,17 +15,22 @@ async function request(model: string, prompt: string, size: string) {
   return { status: res.status, json };
 }
 
-/** Generates a JPEG with the OpenAI image API. Returns the image bytes. */
-export async function generateImage(description: string, style: ImageStyle | "", wide: boolean): Promise<Buffer> {
+/**
+ * Generates an image with the OpenAI image API at the closest native size,
+ * then center-crops it to the exact ratio. Returns JPEG bytes and the final size.
+ */
+export async function generateImage(description: string, style: ImageStyle | "", ratio: ImageRatio) {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("AI 이미지 설정이 없어요. Vercel 환경 변수에 OPENAI_API_KEY를 넣고 Redeploy 해주세요.");
   }
   let prompt = description.trim().slice(0, 3000);
   if (!prompt) throw new Error("이미지 설명을 입력해 주세요.");
+  const [, rw, rh] = IMAGE_RATIOS[ratio] ?? IMAGE_RATIOS["1:1"];
   if (style && IMAGE_STYLES[style]) prompt += `\n\n${IMAGE_STYLES[style][1]}`;
+  if (rw / rh >= 2) prompt += `\nThe image will be cropped to a wide ${rw}:${rh} banner: keep the main subject in the vertical center with empty space above and below.`;
   prompt += "\nDo not include any text, letters, logos or watermarks in the image. Do not depict real people or trademarks.";
-  const size = wide ? "1536x1024" : "1024x1024";
 
+  const size = rw === rh ? "1024x1024" : rw > rh ? "1536x1024" : "1024x1536";
   const preferred = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
   let { status, json } = await request(preferred, prompt, size);
   const detail = json.error?.message ?? "";
@@ -48,5 +47,23 @@ export async function generateImage(description: string, style: ImageStyle | "",
   }
   const b64 = json.data?.[0]?.b64_json;
   if (!b64) throw new Error("이미지 AI가 이미지를 돌려주지 않았어요. 다시 시도해 주세요.");
-  return Buffer.from(b64, "base64");
+  return cropToRatio(Buffer.from(b64, "base64"), rw, rh);
+}
+
+export async function cropToRatio(input: Buffer, rw: number, rh: number) {
+  const img = sharp(input);
+  const meta = await img.metadata();
+  const w = meta.width ?? 1024;
+  const h = meta.height ?? 1024;
+  let cw = w;
+  let ch = Math.round((w * rh) / rw);
+  if (ch > h) {
+    ch = h;
+    cw = Math.round((h * rw) / rh);
+  }
+  const bytes = await img
+    .extract({ left: Math.floor((w - cw) / 2), top: Math.floor((h - ch) / 2), width: cw, height: ch })
+    .jpeg({ quality: 86, mozjpeg: true })
+    .toBuffer();
+  return { bytes, width: cw, height: ch };
 }

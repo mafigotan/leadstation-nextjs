@@ -17,7 +17,8 @@ export const PageContentSchema = z.object({
   theme: z.enum(THEMES).describe("Accent color that fits the product and tone"),
 });
 
-export type PageContent = z.infer<typeof PageContentSchema>;
+/** AI fills PageContentSchema; hero_image is set by the user in the editor. */
+export type PageContent = z.infer<typeof PageContentSchema> & { hero_image?: string };
 
 export const BriefSchema = z.object({
   product: z.string().trim().min(1, "상품 또는 서비스명을 입력해 주세요.").max(200),

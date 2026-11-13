@@ -25,10 +25,12 @@ const BOX_COLORS: Record<string, string> = {
   warning: "border-amber-300 bg-amber-50",
 };
 
-function Pic({ url, alt, prompt, className }: { url: string; alt: string; prompt?: string; className: string }) {
+function Pic({ url, alt, prompt, className, natural }: { url: string; alt: string; prompt?: string; className: string; natural?: boolean }) {
   if (url) {
+    // natural: keep the image's own ratio (1:1, 3:1 ...) instead of the placeholder box.
+    const cls = natural ? className.replace(/aspect-\[[^\]]+\]/, "h-auto") : `${className} object-cover`;
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={url} alt={alt} className={`${className} object-cover`} loading="lazy" />;
+    return <img src={url} alt={alt} className={cls} loading="lazy" />;
   }
   return (
     <div className={`${className} flex items-center justify-center bg-slate-100 p-3 text-center text-xs text-slate-400`} title={prompt}>
@@ -106,7 +108,7 @@ export function BlockView({ b: raw, lang = "ko", draft = false }: { b: Block; la
       if (!b.image_url && !draft) return null;
       return (
         <figure className="my-8">
-          <Pic url={b.image_url} alt={b.text} prompt={b.prompt} className="aspect-[3/2] w-full rounded-xl" />
+          <Pic natural url={b.image_url} alt={b.text} prompt={b.prompt} className="aspect-[3/2] w-full rounded-xl" />
           {b.text && b.image_url && <figcaption className="mt-2 text-center text-xs text-slate-500">{b.text}</figcaption>}
         </figure>
       );
@@ -201,7 +203,7 @@ export function ArticleBody({
       <h1 className="text-3xl font-bold leading-tight sm:text-4xl">{title}</h1>
       {meta}
       {(header.url || draft) && (
-        <Pic url={header.url ?? ""} alt={header.alt ?? title} prompt={header.prompt} className="mt-6 aspect-[3/2] w-full rounded-2xl" />
+        <Pic natural url={header.url ?? ""} alt={header.alt ?? title} prompt={header.prompt} className="mt-6 aspect-[3/2] w-full rounded-2xl" />
       )}
       <div className="mt-6">
         {blocks.map((b) => <BlockView key={b.id} b={b} lang={lang} draft={draft} />)}

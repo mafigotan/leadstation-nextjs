@@ -10,7 +10,7 @@ import { SlugForm } from "./slug-form";
 
 export default async function EditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { supabase, profile } = await requireProfile();
+  const { supabase, user, profile } = await requireProfile();
   const { data: page } = await supabase.from("pages").select("*").eq("id", id).single<PageRow>();
   if (!page) notFound();
 
@@ -27,7 +27,7 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
       <div>
         <Link href="/dashboard/pages" className="text-sm text-slate-500 hover:underline">← 목록으로</Link>
         <h1 className="mb-6 mt-2 text-2xl font-bold">{page.title}</h1>
-        <PageEditor id={page.id} title={page.title} content={page.content} />
+        <PageEditor id={page.id} title={page.title} content={page.content} userId={user.id} />
       </div>
 
       <aside className="space-y-4">

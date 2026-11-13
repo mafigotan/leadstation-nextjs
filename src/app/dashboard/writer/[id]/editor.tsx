@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { ArticleBody } from "@/components/article-view";
-import { ImageField } from "@/app/dashboard/newsletters/[id]/image-field";
+import { ImageField } from "@/components/image-field";
 import {
   BLOCK_LABELS,
   BLOCK_TYPES,
@@ -172,6 +172,7 @@ function BlockEditor({
               <textarea className="input" rows={2} value={r[1] ?? ""} onChange={(e) => setRow(i, 1, e.target.value)} placeholder="설명" />
               <ImageField
                 compact
+                ratio="4:3"
                 userId={userId}
                 value={b.images[i] ?? ""}
                 keyword={keyword}

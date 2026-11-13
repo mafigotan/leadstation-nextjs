@@ -80,7 +80,9 @@ export async function updatePage(id: string, _: FormState, formData: FormData): 
   if (!parsed.success) return { error: "입력값을 확인해 주세요." };
 
   const title = str("title") || parsed.data.headline;
-  const { error } = await supabase.from("pages").update({ title, content: parsed.data }).eq("id", id);
+  const hero = str("hero_image");
+  const content = { ...parsed.data, hero_image: /^https?:\/\//i.test(hero) ? hero.slice(0, 2000) : "" };
+  const { error } = await supabase.from("pages").update({ title, content }).eq("id", id);
   if (error) return { error: "저장하지 못했어요." };
 
   revalidatePath(`/dashboard/pages/${id}`);

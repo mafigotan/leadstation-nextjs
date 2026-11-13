@@ -302,17 +302,3 @@ export async function saveSettings(_: unknown, formData: FormData) {
   return { ok: true };
 }
 
-export async function generateAiImage(description: string, style: string, wide: boolean) {
-  const { supabase, user } = await requireUser();
-  const { generateImage, IMAGE_STYLES } = await import("@/lib/newsletter/image-ai");
-  try {
-    const bytes = await generateImage(description, style in IMAGE_STYLES ? (style as keyof typeof IMAGE_STYLES) : "", wide);
-    const path = `${user.id}/ai-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
-    const { error } = await supabase.storage.from("newsletter-images").upload(path, bytes, { contentType: "image/jpeg" });
-    if (error) return { error: "이미지를 저장하지 못했어요: " + error.message };
-    return { url: supabase.storage.from("newsletter-images").getPublicUrl(path).data.publicUrl };
-  } catch (e) {
-    console.error("generateAiImage failed", e);
-    return { error: e instanceof Error ? e.message : "이미지를 만들지 못했어요." };
-  }
-}

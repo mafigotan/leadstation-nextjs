@@ -109,3 +109,9 @@ supabase/migrations         DB 스키마와 RLS 정책
 2. 대시보드 > AI 글쓰기에서 키워드를 넣고 개요를 만든 뒤 본문을 생성해요. 본문 생성에는 1~3분이 걸려요.
 3. 편집기에서 블록(문단, 표, 단계, 장단점 등)을 고치고, 문단은 AI로 다시 쓰고, 이미지는 AI로 만들 수 있어요 (OPENAI_API_KEY 필요).
 4. 발행한 글은 `https://handle.leadstation.kr/blog/slug`에 SEO 메타 태그와 구조화 데이터(BlogPosting, FAQPage)와 함께 올라가요.
+
+### 이미지 라이브러리
+
+1. Supabase SQL Editor에서 `supabase/migrations/0005_media_library.sql` 내용을 실행해요.
+2. 뉴스레터, AI 글쓰기, 프로모션 페이지의 이미지 칸에서 업로드, 라이브러리, AI 생성(스타일과 비율 선택)을 쓸 수 있어요.
+3. AI로 만든 이미지와 올린 이미지는 대시보드 > 이미지에 모여요.
