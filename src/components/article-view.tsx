@@ -25,7 +25,7 @@ const BOX_COLORS: Record<string, string> = {
   warning: "border-amber-300 bg-amber-50",
 };
 
-function Pic({ url, alt, prompt, className, natural }: { url: string; alt: string; prompt?: string; className: string; natural?: boolean }) {
+export function Pic({ url, alt, prompt, className, natural }: { url: string; alt: string; prompt?: string; className: string; natural?: boolean }) {
   if (url) {
     // natural: keep the image's own ratio (1:1, 3:1 ...) instead of the placeholder box.
     const cls = natural ? className.replace(/aspect-\[[^\]]+\]/, "h-auto") : `${className} object-cover`;
@@ -39,10 +39,37 @@ function Pic({ url, alt, prompt, className, natural }: { url: string; alt: strin
   );
 }
 
-export function BlockView({ b: raw, lang = "ko", draft = false }: { b: Block; lang?: string; draft?: boolean }) {
+/** Clickable image area in the editor (no-op on the public page). */
+function Hot({ onImage, k, children }: { onImage?: (key: string) => void; k: string; children: ReactNode }) {
+  if (!onImage) return <>{children}</>;
+  return (
+    <div
+      className="group/img relative cursor-pointer"
+      onClick={(e) => {
+        e.stopPropagation();
+        onImage(k);
+      }}
+    >
+      {children}
+      <span className="pointer-events-none absolute inset-0 hidden items-center justify-center rounded-xl bg-indigo-900/30 text-sm font-semibold text-white group-hover/img:flex">이미지 편집</span>
+    </div>
+  );
+}
+
+export function BlockView({
+  b: raw,
+  lang = "ko",
+  draft = false,
+  onImage,
+}: {
+  b: Block;
+  lang?: string;
+  draft?: boolean;
+  onImage?: (key: string) => void;
+}) {
   // Skip empty lines left over from editing.
   const b = { ...raw, items: raw.items.filter((x) => x.trim()) };
-  const rows = raw.type === "procon" ? raw.rows : raw.rows.filter((r) => r.some((c) => c.trim()));
+  const rows = raw.type === "procon" || raw.type === "thumbs" ? raw.rows : raw.rows.filter((r) => r.some((c) => c.trim()));
   switch (b.type) {
     case "h2":
       if (!b.text.trim()) return null;
@@ -108,7 +135,9 @@ export function BlockView({ b: raw, lang = "ko", draft = false }: { b: Block; la
       if (!b.image_url && !draft) return null;
       return (
         <figure className="my-8">
-          <Pic natural url={b.image_url} alt={b.text} prompt={b.prompt} className="aspect-[3/2] w-full rounded-xl" />
+          <Hot onImage={onImage} k="main">
+            <Pic natural url={b.image_url} alt={b.text} prompt={b.prompt} className="aspect-[3/2] w-full rounded-xl" />
+          </Hot>
           {b.text && b.image_url && <figcaption className="mt-2 text-center text-xs text-slate-500">{b.text}</figcaption>}
         </figure>
       );
@@ -167,7 +196,11 @@ export function BlockView({ b: raw, lang = "ko", draft = false }: { b: Block; la
         <div className={`my-6 grid gap-4 ${card ? "sm:grid-cols-3" : ""}`}>
           {rows.slice(0, 4).map((r, i) => (
             <div key={i} className={`flex gap-4 overflow-hidden rounded-xl border border-slate-200 ${card ? "flex-col" : "flex-col sm:flex-row"}`}>
-              <Pic url={b.images[i] ?? ""} alt={plain(r[0] ?? "")} prompt={r[2]} className={card ? "aspect-[4/3] w-full" : "aspect-[4/3] w-full sm:w-48 sm:shrink-0"} />
+              <div className={card ? "w-full" : "w-full sm:w-48 sm:shrink-0"}>
+                <Hot onImage={onImage} k={`t${i}`}>
+                  <Pic url={b.images[i] ?? ""} alt={plain(r[0] ?? "")} prompt={r[2]} className="aspect-[4/3] w-full" />
+                </Hot>
+              </div>
               <div className={card ? "px-4 pb-4" : "p-4 sm:pl-0"}>
                 <h3 className="font-bold"><Inline text={r[0] ?? ""} /></h3>
                 <p className="mt-1 text-sm leading-6 text-slate-600"><Inline text={r[1] ?? ""} /></p>

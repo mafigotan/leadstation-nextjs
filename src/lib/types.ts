@@ -18,7 +18,11 @@ export const PageContentSchema = z.object({
 });
 
 /** AI fills PageContentSchema; hero_image is set by the user in the editor. */
-export type PageContent = z.infer<typeof PageContentSchema> & { hero_image?: string };
+export type PageContent = z.infer<typeof PageContentSchema> & {
+  hero_image?: string;
+  /** Element list edited in the visual editor (see lib/page-sections). */
+  sections?: import("./page-sections").Section[];
+};
 
 export const BriefSchema = z.object({
   product: z.string().trim().min(1, "상품 또는 서비스명을 입력해 주세요.").max(200),

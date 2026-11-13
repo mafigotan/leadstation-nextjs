@@ -214,3 +214,80 @@ export function ImageField({
     </div>
   );
 }
+
+/**
+ * Menu shown when an image in the draft is clicked:
+ * find in library, generate with AI, upload, remove, and move.
+ */
+export function ImageMenu({
+  userId,
+  value,
+  onChange,
+  context = "",
+  ratio = "3:2",
+  onMove,
+  moveLabels = ["위로", "아래로"],
+  alt,
+  onAlt,
+}: {
+  userId: string;
+  value: string;
+  onChange: (url: string) => void;
+  context?: string;
+  ratio?: ImageRatio;
+  onMove?: (d: -1 | 1) => void;
+  moveLabels?: [string, string];
+  alt?: string;
+  onAlt?: (v: string) => void;
+}) {
+  const [panel, setPanel] = useState<"" | "ai" | "library" | "url">(value ? "" : "ai");
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function upload(file: File) {
+    setError("");
+    setUploading(true);
+    const r = await uploadToLibrary(userId, file);
+    setUploading(false);
+    if (r.error) setError(r.error);
+    else if (r.url) onChange(r.url);
+  }
+
+  const btn = (on: boolean) =>
+    `flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium ${on ? "border-indigo-500 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {value ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={value} alt="" className="mr-1 h-10 w-14 rounded object-cover" />
+        ) : (
+          <span className="mr-1 text-xs text-slate-500">이미지가 비어 있어요.</span>
+        )}
+        <button type="button" className={btn(panel === "library")} onClick={() => setPanel(panel === "library" ? "" : "library")}>🖼 라이브러리에서 찾기</button>
+        <button type="button" className={`${btn(panel === "ai")} text-violet-700`} onClick={() => setPanel(panel === "ai" ? "" : "ai")}>✦ AI로 생성</button>
+        <button type="button" className={btn(false)} disabled={uploading} onClick={() => fileRef.current?.click()}>{uploading ? "올리는 중…" : "⬆ 업로드"}</button>
+        <button type="button" className={btn(panel === "url")} onClick={() => setPanel(panel === "url" ? "" : "url")}>🔗 주소</button>
+        {onMove && (
+          <>
+            <button type="button" className={btn(false)} onClick={() => onMove(-1)}>↑ {moveLabels[0]}</button>
+            <button type="button" className={btn(false)} onClick={() => onMove(1)}>↓ {moveLabels[1]}</button>
+          </>
+        )}
+        {value && (
+          <button type="button" className="rounded-md border border-red-200 bg-white px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50" onClick={() => onChange("")}>
+            🗑 이미지 삭제
+          </button>
+        )}
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+      </div>
+      {panel === "ai" && <AiImageForm initialText={context} initialRatio={ratio} onDone={(url) => { onChange(url); setPanel(""); }} />}
+      {panel === "library" && <MediaPicker onPick={(url) => { onChange(url); setPanel(""); }} onClose={() => setPanel("")} />}
+      {panel === "url" && <input className="input" value={value} placeholder="https://" onChange={(e) => onChange(e.target.value.trim())} />}
+      {onAlt && <input className="input" value={alt ?? ""} onChange={(e) => onAlt(e.target.value)} placeholder="이미지 설명 (alt 텍스트, 검색과 접근성에 쓰여요)" />}
+      {error && <p className="text-xs text-red-600">{error}</p>}
+    </div>
+  );
+}

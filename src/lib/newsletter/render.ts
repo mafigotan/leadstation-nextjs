@@ -77,8 +77,8 @@ function paragraphs(text: string): string {
     .join("");
 }
 
-function placeholder(height: string, label: string, keyword: string) {
-  return `<div style="height:${height};background:#eef1f4;border:1px dashed #c3c9d0;border-radius:6px;color:#8a94a0;font-size:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;"><span>${esc(label)}</span>${keyword ? `<small>키워드: ${esc(keyword)}</small>` : ""}</div>`;
+function placeholder(height: string, label: string, keyword: string, key = "") {
+  return `<div${key ? ` data-ls-img="${key}"` : ""} style="height:${height};background:#eef1f4;border:1px dashed #c3c9d0;border-radius:6px;color:#8a94a0;font-size:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;"><span>${esc(label)}</span>${keyword ? `<small>키워드: ${esc(keyword)}</small>` : ""}</div>`;
 }
 
 export function greetingLine(name: string | null | undefined): string {
@@ -89,9 +89,9 @@ export function greetingLine(name: string | null | undefined): string {
 function image(b: { image_url: string; image_keyword: string; heading?: string }, t: Theme, preview: boolean, style: string) {
   if (!t.images) return "";
   if (b.image_url) {
-    return `<img src="${escUrl(b.image_url)}" alt="${esc(b.heading ?? "")}" width="100%" style="display:block;width:100%;height:auto;border:0;${style}">`;
+    return `<img${preview ? ' data-ls-img="main"' : ""} src="${escUrl(b.image_url)}" alt="${esc(b.heading ?? "")}" width="100%" style="display:block;width:100%;height:auto;border:0;${style}">`;
   }
-  return preview ? placeholder("200px", "이미지 자리", b.image_keyword) : "";
+  return preview ? placeholder("200px", "이미지 자리 (눌러서 이미지 넣기)", b.image_keyword, "main") : "";
 }
 
 function button(b: Block, t: Theme, siteUrl: string) {
@@ -116,13 +116,15 @@ function cards(b: Block, t: Theme, preview: boolean) {
   html += '<table role="presentation" width="100%" cellpadding="0" cellspacing="0">';
   for (let r = 0; r < items.length; r += cols) {
     html += "<tr>";
-    for (const it of items.slice(r, r + cols)) {
+    items.slice(r, r + cols).forEach((it, k) => {
+      const idx = r + k;
+      const key = preview ? ` data-ls-img="${idx}"` : "";
       let cell = "";
       if (t.images) {
         cell += it.image_url
-          ? `<img src="${escUrl(it.image_url)}" alt="${esc(it.title)}" width="100%" style="display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;border:0;border-radius:6px;margin-bottom:8px;">`
+          ? `<img${key} src="${escUrl(it.image_url)}" alt="${esc(it.title)}" width="100%" style="display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;border:0;border-radius:6px;margin-bottom:8px;">`
           : preview
-            ? `<div style="margin-bottom:8px;">${placeholder("110px", "이미지 자리", it.image_keyword)}</div>`
+            ? `<div style="margin-bottom:8px;">${placeholder("110px", "이미지 자리", it.image_keyword, String(idx))}</div>`
             : "";
       }
       cell += `<div style="font-weight:700;font-size:15px;margin-bottom:4px;">${esc(it.title)}</div>`;
@@ -132,7 +134,7 @@ function cards(b: Block, t: Theme, preview: boolean) {
       }
       const cardStyle = t.card_bg === "#ffffff" ? "border:1px solid #e5e7eb;" : `background:${t.card_bg};`;
       html += `<td class="ls-col" width="${width}%" valign="top" style="padding:6px;"><div style="${cardStyle}border-radius:${t.radius === "0" ? "0" : "8px"};padding:14px;">${cell}</div></td>`;
-    }
+    });
     html += "</tr>";
   }
   return html + "</table>";
@@ -154,9 +156,9 @@ function thumbs(b: Block, t: Theme, preview: boolean, siteUrl: string) {
     html += "<tr>";
     if (t.images) {
       const img = it.image_url
-        ? `<img src="${escUrl(it.image_url)}" alt="${esc(it.title)}" width="120" height="90" style="display:block;width:120px;height:90px;object-fit:cover;border:0;border-radius:6px;">`
+        ? `<img${preview ? ` data-ls-img="${i}"` : ""} src="${escUrl(it.image_url)}" alt="${esc(it.title)}" width="120" height="90" style="display:block;width:120px;height:90px;object-fit:cover;border:0;border-radius:6px;">`
         : preview
-          ? `<div style="width:120px;">${placeholder("90px", "이미지", "")}</div>`
+          ? `<div style="width:120px;">${placeholder("90px", "이미지", "", String(i))}</div>`
           : "";
       html += `<td width="120" valign="top" style="width:120px;${pad}">${img}</td><td width="14" style="width:14px;font-size:0;line-height:0;">&nbsp;</td>`;
     }
@@ -194,6 +196,16 @@ function renderBlock(b: Block, t: Theme, preview: boolean, siteUrl: string): str
     case "divider":
       return '<div style="border-top:1px solid #e5e7eb;height:1px;line-height:1px;font-size:0;">&nbsp;</div>';
   }
+}
+
+/** One block as preview HTML (with data-ls-img hooks) plus the email styles, for the visual editor. */
+export function renderBlockPreview(b: Block, template: Template, settings: SenderSettings, siteUrl: string): string {
+  return renderBlock(b, theme(template, settings.accent_color), true, siteUrl);
+}
+
+export function previewTheme(template: Template, settings: SenderSettings) {
+  const t = theme(template, settings.accent_color);
+  return { page_bg: t.page_bg, body_bg: t.body_bg, text: t.text, muted: t.muted, font: t.font, pad: t.pad, radius: t.radius, header_bg: t.header_bg, header_text: t.header_text };
 }
 
 export type RenderInput = {

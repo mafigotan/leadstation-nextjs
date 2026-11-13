@@ -6,7 +6,8 @@ import { requireUser } from "@/lib/supabase/server";
 import { generatePageContent } from "@/lib/ai/generate-page";
 import { makeSlug } from "@/lib/slug";
 import { SLUG_RE } from "@/lib/site";
-import { BriefSchema, PageContentSchema, THEMES, type Theme } from "@/lib/types";
+import { sanitizeSections, withSections } from "@/lib/page-sections";
+import { BriefSchema, THEMES, type PageContent, type Theme } from "@/lib/types";
 
 export type FormState = { error?: string; saved?: boolean };
 
@@ -50,46 +51,6 @@ export async function createPage(_: FormState, formData: FormData): Promise<Form
   redirect(`/dashboard/pages/${data.id}`);
 }
 
-function parseBenefits(raw: string) {
-  return raw
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [title, ...rest] = line.split("|");
-      return { title: title.trim(), description: rest.join("|").trim() };
-    });
-}
-
-export async function updatePage(id: string, _: FormState, formData: FormData): Promise<FormState> {
-  const { supabase } = await requireUser();
-  const str = (k: string) => String(formData.get(k) ?? "").trim();
-  const theme = str("theme");
-
-  const parsed = PageContentSchema.safeParse({
-    badge: str("badge"),
-    headline: str("headline"),
-    subheadline: str("subheadline"),
-    benefits: parseBenefits(str("benefits")),
-    details: str("details"),
-    cta_label: str("cta_label") || "신청하기",
-    form_title: str("form_title"),
-    form_description: str("form_description"),
-    theme: (THEMES as readonly string[]).includes(theme) ? (theme as Theme) : "indigo",
-  });
-  if (!parsed.success) return { error: "입력값을 확인해 주세요." };
-
-  const title = str("title") || parsed.data.headline;
-  const hero = str("hero_image");
-  const content = { ...parsed.data, hero_image: /^https?:\/\//i.test(hero) ? hero.slice(0, 2000) : "" };
-  const { error } = await supabase.from("pages").update({ title, content }).eq("id", id);
-  if (error) return { error: "저장하지 못했어요." };
-
-  revalidatePath(`/dashboard/pages/${id}`);
-  revalidatePath("/dashboard/pages");
-  return { saved: true };
-}
-
 export async function setPublished(id: string, published: boolean) {
   const { supabase } = await requireUser();
   await supabase
@@ -117,4 +78,22 @@ export async function updateSlug(id: string, _: FormState, formData: FormData): 
   revalidatePath(`/dashboard/pages/${id}`);
   revalidatePath("/dashboard/pages");
   return { saved: true };
+}
+
+export async function savePageSections(
+  id: string,
+  input: { title: string; theme: string; sections: unknown },
+): Promise<{ error?: string }> {
+  const { supabase } = await requireUser();
+  const { data: page } = await supabase.from("pages").select("content").eq("id", id).single();
+  if (!page) return { error: "페이지를 찾을 수 없어요." };
+  const sections = sanitizeSections(input.sections);
+  const theme = (THEMES as readonly string[]).includes(input.theme) ? (input.theme as Theme) : "indigo";
+  const content = withSections({ ...(page.content as PageContent), theme }, sections);
+  const title = String(input.title ?? "").trim().slice(0, 200) || content.headline;
+  const { error } = await supabase.from("pages").update({ title, content }).eq("id", id);
+  if (error) return { error: "저장하지 못했어요: " + error.message };
+  revalidatePath(`/dashboard/pages/${id}`);
+  revalidatePath("/dashboard/pages");
+  return {};
 }
