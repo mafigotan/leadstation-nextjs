@@ -75,6 +75,13 @@ select cron.schedule(
 
 저장소를 Vercel에 import하고, `.env.example`의 환경 변수를 Project Settings > Environment Variables에 넣으면 돼요. `NEXT_PUBLIC_SITE_URL`은 배포 주소로 바꿔주세요.
 
+### 사용자별 서브 도메인
+
+1. Supabase SQL Editor에서 `supabase/migrations/0003_user_subdomains.sql` 내용을 실행해요.
+2. Vercel 환경 변수에 `NEXT_PUBLIC_ROOT_DOMAIN=leadstation.kr`을 추가해요.
+3. Vercel Settings > Domains에서 `*.leadstation.kr`을 추가해요 (네임서버가 Vercel이어야 해요).
+4. 사용자는 처음 로그인할 때 /welcome에서 주소(handle)를 정하고, 페이지는 `https://handle.leadstation.kr/slug`로 열려요.
+
 ## 구조
 
 ```

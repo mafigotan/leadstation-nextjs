@@ -38,3 +38,20 @@ export async function requireUser() {
   }
   return { supabase, user: user! };
 }
+
+export type Profile = { user_id: string; handle: string; display_name: string };
+
+/** Signed-in user plus their profile; redirects to /welcome when the address is not set yet. */
+export async function requireProfile() {
+  const { supabase, user } = await requireUser();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("user_id, handle, display_name")
+    .eq("user_id", user.id)
+    .maybeSingle<Profile>();
+  if (!profile) {
+    const { redirect } = await import("next/navigation");
+    redirect("/welcome");
+  }
+  return { supabase, user, profile: profile! };
+}

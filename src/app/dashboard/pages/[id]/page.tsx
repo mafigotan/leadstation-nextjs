@@ -1,15 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireUser } from "@/lib/supabase/server";
-import { siteUrl } from "@/lib/slug";
+import { requireProfile } from "@/lib/supabase/server";
+import { mainDomainUrl, userUrl } from "@/lib/site";
 import type { PageRow } from "@/lib/types";
 import { deletePage, setPublished } from "../actions";
 import { PageEditor } from "./page-editor";
 import { CopyButton } from "@/components/copy-button";
+import { SlugForm } from "./slug-form";
 
 export default async function EditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { supabase } = await requireUser();
+  const { supabase, profile } = await requireProfile();
   const { data: page } = await supabase.from("pages").select("*").eq("id", id).single<PageRow>();
   if (!page) notFound();
 
@@ -18,7 +19,7 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
     .select("id", { count: "exact", head: true })
     .eq("page_id", id);
 
-  const publicUrl = `${siteUrl()}/p/${page.slug}`;
+  const publicUrl = userUrl(profile.handle, page.slug);
   const published = page.status === "published";
 
   return (
@@ -42,7 +43,7 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
               {published ? "비공개로 전환" : "페이지 공개하기"}
             </button>
           </form>
-          <Link href={`/p/${page.slug}`} target="_blank" className="btn-secondary w-full">
+          <Link href={published ? publicUrl : mainDomainUrl(profile.handle, page.slug)} target="_blank" className="btn-secondary w-full">
             {published ? "페이지 열기" : "미리보기"}
           </Link>
         </div>
@@ -51,6 +52,7 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
           <p className="text-sm font-medium">공개 주소</p>
           <p className="break-all rounded-md bg-slate-50 p-2 text-xs text-slate-600">{publicUrl}</p>
           <CopyButton text={publicUrl} />
+          <SlugForm id={page.id} slug={page.slug} prefix={publicUrl.slice(0, publicUrl.length - page.slug.length)} />
           {!published && <p className="text-xs text-slate-500">공개하기 전에는 이 주소로 신청을 받을 수 없어요.</p>}
         </div>
 
