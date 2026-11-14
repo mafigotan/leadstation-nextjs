@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
+import { Modal } from "@/components/visual-editor";
 import { addPayment, updateSiteAdmin, type AdminState } from "../../actions";
 
 type Site = { id: string; status: string; active_from: string | null; active_until: string | null; service_started_on: string | null };
@@ -52,8 +53,21 @@ export function SiteAdminForm({ site, memo }: { site: Site; memo: string }) {
 
 export type SiteOption = { id: string; label: string };
 
-export function PaymentForm({ siteId = "", sites, today }: { siteId?: string; sites?: SiteOption[]; today: string }) {
+export function PaymentForm({
+  siteId = "",
+  sites,
+  today,
+  onSaved,
+}: {
+  siteId?: string;
+  sites?: SiteOption[];
+  today: string;
+  onSaved?: (message: string) => void;
+}) {
   const [state, action, pending] = useActionState<AdminState, FormData>(addPayment.bind(null, siteId), {});
+  useEffect(() => {
+    if (state.ok && onSaved) onSaved(state.message ?? "");
+  }, [state, onSaved]);
   return (
     <form action={action} className="space-y-3">
       {sites && (
@@ -108,5 +122,30 @@ export function PaymentForm({ siteId = "", sites, today }: { siteId?: string; si
         <Status state={state} />
       </div>
     </form>
+  );
+}
+
+/** "결제 등록" button that opens the payment form in a modal. */
+export function PaymentModalButton({ sites, today }: { sites: SiteOption[]; today: string }) {
+  const [open, setOpen] = useState(false);
+  const [notice, setNotice] = useState("");
+  return (
+    <>
+      <button type="button" onClick={() => { setOpen(true); setNotice(""); }} className="btn-primary">+ 결제 등록</button>
+      {notice && <span className="text-sm text-emerald-700">{notice}</span>}
+      {open && (
+        <Modal title="서비스 이용료 결제 등록" onClose={() => setOpen(false)}>
+          <p className="mb-4 text-sm text-slate-500">이용 기간을 넣으면 그 사이트의 이용 종료일이 자동으로 늘어나고 활성으로 바뀌어요.</p>
+          <PaymentForm
+            sites={sites}
+            today={today}
+            onSaved={(m) => {
+              setOpen(false);
+              setNotice(m);
+            }}
+          />
+        </Modal>
+      )}
+    </>
   );
 }

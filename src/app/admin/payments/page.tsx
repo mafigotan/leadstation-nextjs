@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireSuperAdmin } from "@/lib/supabase/server";
 import { todayKst } from "@/lib/site";
 import { METHOD_LABEL, Table, Th, fmtDate, won } from "../ui";
-import { PaymentForm } from "../sites/[id]/forms";
+import { PaymentModalButton } from "../sites/[id]/forms";
 
 type Row = {
   id: string; site_id: string; paid_on: string; amount: number; method: string; period_from: string | null; period_to: string | null;
@@ -47,7 +47,10 @@ export default async function AdminPayments({ searchParams }: { searchParams: Pr
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">결제 내역</h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold">결제 내역</h1>
+            <PaymentModalButton sites={siteOptions} today={today} />
+          </div>
           <p className="mt-1 text-sm text-slate-500">{fmtDate(from)} ~ {fmtDate(to)} · {rows.length}건 · 합계 <span className="font-semibold text-slate-800">{won(total)}</span></p>
         </div>
         <form className="flex flex-wrap items-center gap-2">
@@ -63,13 +66,6 @@ export default async function AdminPayments({ searchParams }: { searchParams: Pr
         </form>
       </div>
       {error && <p className="text-sm text-red-600">불러오지 못했어요: {error.message}</p>}
-      <details className="card p-5" open={rows.length === 0}>
-        <summary className="cursor-pointer font-bold">+ 서비스 이용료 결제 등록</summary>
-        <p className="mb-4 mt-1 text-sm text-slate-500">결제를 등록하면서 이용 기간을 넣으면, 그 사이트의 이용 종료일이 자동으로 늘어나고 활성으로 바뀌어요.</p>
-        <div className="max-w-2xl">
-          <PaymentForm sites={siteOptions} today={today} />
-        </div>
-      </details>
       {months.size > 1 && (
         <div className="flex flex-wrap gap-2">
           {[...months].map(([m, v]) => (
