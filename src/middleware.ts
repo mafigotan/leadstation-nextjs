@@ -21,7 +21,7 @@ export async function middleware(request: NextRequest) {
     // handle.leadstation.kr/        -> /s/handle
     // handle.leadstation.kr/event   -> /s/handle/event
     const parts = pathname.split("/").filter(Boolean);
-    const appPaths = new Set(["dashboard", "login", "welcome", "auth", "u", "p", "s"]);
+    const appPaths = new Set(["dashboard", "login", "welcome", "auth", "u", "p", "s", "admin", "blocked"]);
     // handle.leadstation.kr/blog[/post] -> /s/handle/blog[/post]
     const isBlog = parts[0] === "blog" && parts.length <= 2;
     if ((isBlog || (parts.length <= 1 && !appPaths.has(parts[0] ?? ""))) && !pathname.startsWith("/_next")) {
@@ -34,7 +34,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(pathname + request.nextUrl.search, root));
   }
 
-  if (pathname.startsWith("/dashboard") || pathname === "/login" || pathname === "/welcome") {
+  if (pathname.startsWith("/dashboard") || pathname.startsWith("/admin") || ["/login", "/welcome", "/blocked"].includes(pathname)) {
     return updateSession(request);
   }
   return NextResponse.next();

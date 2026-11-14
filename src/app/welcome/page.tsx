@@ -11,6 +11,7 @@ export default async function WelcomePage() {
   const { supabase } = await requireUser();
   await supabase.rpc("accept_site_invites");
   const { supabase: db, user, profile, memberships } = await loadAccount();
+  if (profile?.suspended_at) redirect("/blocked");
   if (profile?.full_name && memberships.length) redirect("/dashboard");
   const { data: requests } = await db
     .from("site_join_requests")

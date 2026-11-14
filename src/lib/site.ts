@@ -41,3 +41,23 @@ export function validateHandle(raw: string): string | null {
   if (RESERVED_HANDLES.has(h)) return "사용할 수 없는 주소예요.";
   return null;
 }
+
+/** Today's date in Korea as YYYY-MM-DD. */
+export function todayKst(): string {
+  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+export type SiteStatusFields = { status?: string | null; active_from?: string | null; active_until?: string | null };
+
+/** Why a site is not usable now, or null when it is live (active and inside its period). */
+export function siteBlockReason(s: SiteStatusFields): "inactive" | "not_started" | "expired" | null {
+  const today = todayKst();
+  if (s.status && s.status !== "active") return "inactive";
+  if (s.active_from && s.active_from > today) return "not_started";
+  if (s.active_until && s.active_until < today) return "expired";
+  return null;
+}
+
+export function isSiteLive(s: SiteStatusFields) {
+  return siteBlockReason(s) === null;
+}

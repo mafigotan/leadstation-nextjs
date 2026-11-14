@@ -13,6 +13,9 @@ export default async function ProfilePage() {
       : Promise.resolve({ data: [] }),
   ]);
   const isAdmin = role === "admin";
+  const { data: payments } = isAdmin
+    ? await supabase.from("site_payments").select("id, paid_on, amount, method, period_from, period_to").eq("site_id", site.id).order("paid_on", { ascending: false }).limit(24)
+    : { data: [] };
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -46,6 +49,34 @@ export default async function ProfilePage() {
           <p className="mt-2 text-sm text-slate-500">사이트 이름: {site.name || "-"} · 사이트 주소는 관리자만 바꿀 수 있어요.</p>
         )}
       </section>
+
+      {isAdmin && (
+        <section className="card p-6">
+          <h2 className="font-bold">이용 기간과 결제 내역</h2>
+          <p className="mb-4 mt-1 text-sm text-slate-500">
+            서비스 개시일 {site.service_started_on ?? "-"} · 이용 기간{" "}
+            {site.active_from || site.active_until ? `${site.active_from ?? "-"} ~ ${site.active_until ?? "-"}` : "제한 없음"}
+          </p>
+          {payments?.length ? (
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-slate-500">
+                <tr><th className="py-1.5 font-medium">결제일</th><th className="py-1.5 text-right font-medium">금액</th><th className="py-1.5 pl-4 font-medium">이용 기간</th></tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {payments.map((p) => (
+                  <tr key={p.id}>
+                    <td className="py-1.5">{p.paid_on}</td>
+                    <td className="py-1.5 text-right">{Number(p.amount).toLocaleString("ko-KR")}원</td>
+                    <td className="py-1.5 pl-4 text-slate-600">{p.period_from || p.period_to ? `${p.period_from ?? "-"} ~ ${p.period_to ?? "-"}` : "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="text-sm text-slate-400">결제 내역이 없어요.</p>
+          )}
+        </section>
+      )}
 
       <section className="card p-6">
         <h2 className="font-bold">사이트 멤버</h2>

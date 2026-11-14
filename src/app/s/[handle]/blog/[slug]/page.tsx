@@ -2,14 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { blogUrl, userUrl } from "@/lib/site";
+import { blogUrl, userUrl, isSiteLive } from "@/lib/site";
 import { ArticleBody } from "@/components/article-view";
 import { plain, type Article } from "@/lib/writer/types";
 
 async function load(handle: string, slug: string) {
   const supabase = await createClient();
-  const { data: site } = await supabase.from("sites").select("id, handle, name").eq("handle", handle.toLowerCase()).maybeSingle();
-  if (!site) return null;
+  const { data: site } = await supabase.from("sites").select("id, handle, name, status, active_from, active_until").eq("handle", handle.toLowerCase()).maybeSingle();
+  if (!site || !isSiteLive(site)) return null;
   // RLS: published posts for everyone, drafts only for the site members (preview on the main domain).
   const { data: article } = await supabase
     .from("articles")

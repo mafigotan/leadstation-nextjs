@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { activitySubject, activityVerb } from "@/lib/activity";
 import type { Site } from "@/lib/supabase/server";
 import type { LeadWithPage } from "@/lib/leads";
 import { blogUrl, userUrl } from "@/lib/site";
@@ -8,29 +9,6 @@ export type Notification = { id: string; kind: string; title: string; body: stri
 export type Activity = { id: number; user_id: string | null; action: string; target_type: string; target_id: string | null; title: string; created_at: string };
 export type Member = { user_id: string; email: string; full_name: string; role: "admin" | "member" };
 
-const ACTIONS: Record<string, string> = {
-  created: "만들었어요",
-  updated: "수정했어요",
-  published: "게시했어요",
-  unpublished: "비공개로 바꿨어요",
-  deleted: "삭제했어요",
-  sent: "발송했어요",
-  scheduled: "발송을 예약했어요",
-  generated: "AI로 만들었어요",
-  uploaded: "업로드했어요",
-  added: "추가했어요",
-  member_added: "님을 멤버로 추가했어요",
-  member_removed: "님을 멤버에서 뺐어요",
-  role_changed: "",
-};
-const TYPES: Record<string, string> = {
-  page: "프로모션 페이지",
-  article: "글",
-  newsletter: "뉴스레터",
-  media: "이미지",
-  recipients: "",
-  member: "",
-};
 const NL_STATUS: Record<string, string> = { draft: "초안", scheduled: "예약", sending: "발송 중", sent: "발송 완료", failed: "실패" };
 
 function ago(iso: string) {
@@ -253,17 +231,12 @@ export function DashboardView({ name, site, isAdmin, notifications, open, pages,
                 <ul className="space-y-1.5 border-l-2 border-slate-100 pl-3">
                   {p.items.map((a) => {
                     const href = itemHref(a);
-                    const what =
-                      a.action === "role_changed"
-                        ? `권한 변경: ${a.title}`
-                        : TYPES[a.target_type]
-                          ? `${TYPES[a.target_type]}${a.title ? ` "${a.title}"` : ""}`
-                          : a.title;
+                    const what = activitySubject(a);
                     return (
                       <li key={a.id} className="text-sm">
                         {href ? <Link href={href} className="hover:underline">{what}</Link> : what}
                         {" "}
-                        {ACTIONS[a.action] ?? a.action}
+                        {activityVerb(a)}
                         <span className="ml-1.5 text-xs text-slate-400">{ago(a.created_at)}</span>
                       </li>
                     );

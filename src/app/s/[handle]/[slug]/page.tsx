@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { isSiteLive } from "@/lib/site";
 import { PromoPage } from "@/components/promo-page";
 import type { PageRow } from "@/lib/types";
 import { LeadForm } from "@/app/p/[slug]/lead-form";
 
 async function getPage(handle: string, slug: string) {
   const supabase = await createClient();
-  const { data: site } = await supabase.from("sites").select("id, handle, name").eq("handle", handle.toLowerCase()).maybeSingle();
-  if (!site) return null;
+  const { data: site } = await supabase.from("sites").select("id, handle, name, status, active_from, active_until").eq("handle", handle.toLowerCase()).maybeSingle();
+  if (!site || !isSiteLive(site)) return null;
   // RLS returns published pages to everyone, and drafts only to the site members (preview).
   const { data } = await supabase
     .from("pages")

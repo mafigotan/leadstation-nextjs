@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { requireSite } from "@/lib/supabase/server";
+import { isSuperAdmin, requireSite } from "@/lib/supabase/server";
 import { userUrl } from "@/lib/site";
 import { signOut } from "@/app/(auth)/login/actions";
 import { DashboardNav } from "@/components/dashboard-nav";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, profile, site } = await requireSite();
+  const { supabase, user, profile, site } = await requireSite();
+  const superAdmin = await isSuperAdmin(supabase);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -21,6 +22,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <a href={userUrl(site.handle)} target="_blank" className="hidden font-medium text-indigo-600 hover:underline md:inline">
               {userUrl(site.handle).replace(/^https?:\/\//, "").replace(/\/$/, "")}
             </a>
+            {superAdmin && (
+              <Link href="/admin" className="rounded-md bg-slate-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-700">슈퍼 관리자</Link>
+            )}
             <Link href="/dashboard/profile" className="hidden hover:underline sm:inline" title={user.email}>{profile.full_name || user.email}</Link>
             <form action={signOut}>
               <button className="btn-secondary px-3 py-1.5">로그아웃</button>

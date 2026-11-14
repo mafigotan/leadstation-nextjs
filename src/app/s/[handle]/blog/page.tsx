@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { blogUrl, userUrl } from "@/lib/site";
+import { blogUrl, userUrl, isSiteLive } from "@/lib/site";
 import type { HeaderImage } from "@/lib/writer/types";
 
 async function load(handle: string) {
   const supabase = await createClient();
-  const { data: site } = await supabase.from("sites").select("id, handle, name").eq("handle", handle.toLowerCase()).maybeSingle();
-  if (!site) return null;
+  const { data: site } = await supabase.from("sites").select("id, handle, name, status, active_from, active_until").eq("handle", handle.toLowerCase()).maybeSingle();
+  if (!site || !isSiteLive(site)) return null;
   const { data } = await supabase
     .from("articles")
     .select("slug, title, meta_description, header_image, published_at, tags")

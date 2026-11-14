@@ -2,17 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { blogUrl, userUrl } from "@/lib/site";
+import { blogUrl, userUrl, isSiteLive } from "@/lib/site";
 import type { PageContent } from "@/lib/types";
 
 async function load(handle: string) {
   const supabase = await createClient();
   const { data: site } = await supabase
     .from("sites")
-    .select("id, handle, name")
+    .select("id, handle, name, status, active_from, active_until")
     .eq("handle", handle.toLowerCase())
     .maybeSingle();
-  if (!site) return null;
+  if (!site || !isSiteLive(site)) return null;
   const { data: pages } = await supabase
     .from("pages")
     .select("slug, title, content, created_at")
