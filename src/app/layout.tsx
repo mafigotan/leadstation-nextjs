@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
+import { GlobalLoading } from "@/components/global-loading";
 
 const font = Noto_Sans_KR({ subsets: ["latin"], variable: "--font-noto", display: "swap" });
 
@@ -12,7 +13,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko" className={font.variable}>
-      <body>{children}</body>
+      <body>
+        <GlobalLoading />
+        {children}
+      </body>
     </html>
   );
 }

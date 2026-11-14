@@ -40,3 +40,9 @@ body {
   box-shadow: 0 0 0 2px rgb(99 102 241 / 0.25);
   border-radius: 4px;
 }
+
+/* Global loading indicator */
+@keyframes ls-progress { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+@keyframes ls-spin { to { transform: rotate(360deg); } }
+.ls-progress-bar { animation: ls-progress 1.1s ease-in-out infinite; }
+.ls-spinner { animation: ls-spin 0.7s linear infinite; }
