@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSite } from "@/lib/supabase/server";
+import { metered } from "@/lib/usage";
 import { IMAGE_RATIOS, IMAGE_STYLES, type ImageRatio, type ImageStyle } from "@/lib/images/options";
 
 export type MediaItem = {
@@ -25,7 +26,7 @@ export async function generateAiImage(description: string, style: string, ratio:
   const st = (style in IMAGE_STYLES ? style : "") as ImageStyle | "";
   const ra = (ratio in IMAGE_RATIOS ? ratio : "1:1") as ImageRatio;
   try {
-    const { bytes, width, height } = await generateImage(description, st, ra);
+    const { bytes, width, height } = await metered(supabase, site.id, ["image"], () => generateImage(description, st, ra));
     const path = `${user.id}/ai-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
     const { error } = await supabase.storage.from(BUCKET).upload(path, bytes, { contentType: "image/jpeg" });
     if (error) return { error: "이미지를 저장하지 못했어요: " + error.message };

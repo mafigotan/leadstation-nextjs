@@ -1,5 +1,6 @@
 import "server-only";
 import sharp from "sharp";
+import { addUsage } from "@/lib/usage";
 import { IMAGE_RATIOS, IMAGE_STYLES, type ImageRatio, type ImageStyle } from "./options";
 
 async function request(model: string, prompt: string, size: string) {
@@ -11,7 +12,10 @@ async function request(model: string, prompt: string, size: string) {
   const json = (await res.json().catch(() => ({}))) as {
     data?: { b64_json?: string }[];
     error?: { message?: string; code?: string };
+    usage?: { total_tokens?: number };
   };
+  // Image tokens are counted for successful images (OpenAI reports them; estimate if it doesn't).
+  if (res.status === 200) addUsage("image", json.usage?.total_tokens ?? (size === "1024x1024" ? 1100 : 1650));
   return { status: res.status, json };
 }
 

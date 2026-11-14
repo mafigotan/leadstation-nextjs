@@ -1,5 +1,6 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
+import { addUsage } from "@/lib/usage";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { PageContentSchema, type Brief, type PageContent } from "@/lib/types";
 
@@ -30,6 +31,7 @@ export async function generatePageContent(brief: Brief): Promise<PageContent> {
     ],
   });
 
+  addUsage("text", response.usage.input_tokens + response.usage.output_tokens);
   if (response.stop_reason === "refusal") {
     throw new Error("AI가 이 요청에 대한 페이지 생성을 거절했어요. 입력 내용을 바꿔서 다시 시도해 주세요.");
   }

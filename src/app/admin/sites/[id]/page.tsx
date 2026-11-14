@@ -5,8 +5,13 @@ import { todayKst, userUrl } from "@/lib/site";
 import { METHOD_LABEL, SiteStatus, Table, Th, UserStatus, fmtDate, won } from "../../ui";
 import { deletePayment } from "../../actions";
 import { PaymentForm, SiteAdminForm } from "./forms";
+import { loadUsage } from "@/lib/usage";
+import { LimitRequestTable } from "../../limit-requests";
 
-type Site = { id: string; handle: string; name: string; status: string; active_from: string | null; active_until: string | null; service_started_on: string | null; created_at: string };
+type Site = {
+  id: string; handle: string; name: string; status: string; active_from: string | null; active_until: string | null;
+  service_started_on: string | null; created_at: string; newsletter_limit: number | null; text_token_limit: number | null; image_token_limit: number | null;
+};
 type Member = { user_id: string; email: string; full_name: string; role: string; suspended_at: string | null };
 
 export default async function AdminSite({ params }: { params: Promise<{ id: string }> }) {
@@ -14,15 +19,17 @@ export default async function AdminSite({ params }: { params: Promise<{ id: stri
   const { supabase } = await requireSuperAdmin();
   const { data: site } = await supabase
     .from("sites")
-    .select("id, handle, name, status, active_from, active_until, service_started_on, created_at")
+    .select("id, handle, name, status, active_from, active_until, service_started_on, created_at, newsletter_limit, text_token_limit, image_token_limit")
     .eq("id", id)
     .maybeSingle<Site>();
   if (!site) notFound();
-  const [{ data: memo }, { data: members }, { data: payments }, { count: activityCount }] = await Promise.all([
+  const [{ data: memo }, { data: members }, { data: payments }, { count: activityCount }, usage, { data: requests }] = await Promise.all([
     supabase.rpc("admin_site_memo", { p_site: id }),
     supabase.rpc("admin_site_members", { p_site: id }),
     supabase.from("site_payments").select("id, paid_on, amount, method, period_from, period_to, payer, memo").eq("site_id", id).order("paid_on", { ascending: false }),
     supabase.from("activity_logs").select("id", { count: "exact", head: true }).eq("site_id", id),
+    loadUsage(supabase, id),
+    supabase.from("limit_requests").select("id, kinds, message, status, created_at").eq("site_id", id).order("created_at", { ascending: false }).limit(10),
   ]);
   const total = (payments ?? []).reduce((s, p) => s + Number(p.amount), 0);
 
@@ -41,13 +48,20 @@ export default async function AdminSite({ params }: { params: Promise<{ id: stri
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="card p-5">
           <h2 className="mb-3 font-bold">사이트 상태와 이용 기간</h2>
-          <SiteAdminForm site={site} memo={(memo as string | null) ?? ""} />
+          <SiteAdminForm site={site} memo={(memo as string | null) ?? ""} usage={usage} />
         </section>
         <section className="card p-5">
           <h2 className="mb-3 font-bold">결제 입력 <span className="text-sm font-normal text-slate-500">오프라인 결제</span></h2>
           <PaymentForm siteId={site.id} today={todayKst()} />
         </section>
       </div>
+
+      {!!requests?.length && (
+        <section className="space-y-2">
+          <h2 className="font-bold">이용 한도 증설 요청</h2>
+          <LimitRequestTable requests={requests} />
+        </section>
+      )}
 
       <section className="space-y-2">
         <h2 className="font-bold">결제 내역 <span className="text-sm font-normal text-slate-500">합계 {won(total)}</span></h2>

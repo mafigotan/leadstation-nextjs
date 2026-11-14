@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSite } from "@/lib/supabase/server";
+import { checkLimit, limitMessage, metered, recordUsage } from "@/lib/usage";
 import { siteUrl } from "@/lib/slug";
 import { generateNewsletter } from "@/lib/newsletter/ai";
 import { sendOne } from "@/lib/newsletter/mailer";
@@ -89,7 +90,7 @@ export async function generateWithAi(id: string, input: DraftInput, mode: "new" 
 
   const settings = await getSettings(supabase, site.id);
   try {
-    const result = await generateNewsletter({
+    const result = await metered(supabase, site.id, ["text"], () => generateNewsletter({
       topic: draft.topic,
       prompt: draft.prompt,
       tone: draft.tone,
@@ -97,7 +98,7 @@ export async function generateWithAi(id: string, input: DraftInput, mode: "new" 
       greeting: draft.greeting,
       brand: settings.brand_context,
       current: mode === "edit" ? draft.blocks : [],
-    });
+    }));
     const update = {
       ...draft,
       title: draft.title && draft.title !== "새 뉴스레터" ? draft.title : result.subject,
@@ -111,7 +112,7 @@ export async function generateWithAi(id: string, input: DraftInput, mode: "new" 
     return { ok: true, subject: update.subject, preheader: update.preheader, blocks: update.blocks, title: update.title };
   } catch (e) {
     console.error("generateNewsletter failed", e);
-    const msg = e instanceof Error && e.message.startsWith("AI") ? e.message : "AI 생성 중 오류가 발생했어요. 잠시 후 다시 시도해 주세요.";
+    const msg = limitMessage(e) ?? (e instanceof Error && e.message.startsWith("AI") ? e.message : "AI 생성 중 오류가 발생했어요. 잠시 후 다시 시도해 주세요.");
     return { error: msg };
   }
 }
@@ -166,12 +167,14 @@ export async function sendTest(id: string, rawEmails: string) {
   const settings = await getSettings(supabase, site.id);
   const html = personalize(renderNewsletter(nl, settings, { placeholders: true, siteUrl: siteUrl() }), "테스트", `${siteUrl()}/`);
   try {
+    await checkLimit(supabase, site.id, "newsletter", emails.length);
+    await recordUsage(supabase, "newsletter", emails.length);
     for (const to of emails) {
       await sendOne({ to, subject: `[테스트] ${nl.subject || nl.title}`, html, fromName: settings.from_name, replyTo: settings.reply_to || undefined });
     }
     return { ok: true, message: `${emails.join(", ")}(으)로 테스트 메일을 보냈어요.` };
   } catch (e) {
-    return { error: `테스트 메일을 보내지 못했어요: ${e instanceof Error ? e.message : "알 수 없는 오류"}` };
+    return { error: limitMessage(e) ?? `테스트 메일을 보내지 못했어요: ${e instanceof Error ? e.message : "알 수 없는 오류"}` };
   }
 }
 
@@ -229,7 +232,9 @@ export async function startSend(id: string, req: SendRequest) {
 
   const settings = await getSettings(supabase, site.id);
   try {
+    await checkLimit(supabase, site.id, "newsletter", targets.length);
     const campaignId = await createCampaign(supabase, nl, settings, targets, spec, scheduledAt);
+    await recordUsage(supabase, "newsletter", targets.length);
     revalidatePath(`/dashboard/newsletters/${id}/send`);
     return { ok: true, campaignId, total: targets.length, scheduled: !!scheduledAt };
   } catch (e) {
@@ -276,7 +281,13 @@ export async function resendFailed(campaignId: string) {
   const spec: AudienceSpec = { mode: "emails", emails };
   const targets = await buildAudience(supabase, site.id, spec);
   const settings = await getSettings(supabase, site.id);
+  try {
+    await checkLimit(supabase, site.id, "newsletter", targets.length);
+  } catch (e) {
+    return { error: limitMessage(e) ?? "다시 보내지 못했어요." };
+  }
   const id = await createCampaign(supabase, nl, settings, targets, spec, null, "resend");
+  await recordUsage(supabase, "newsletter", targets.length);
   return { ok: true, campaignId: id, total: targets.length };
 }
 

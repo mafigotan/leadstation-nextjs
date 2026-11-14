@@ -1,5 +1,6 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
+import { addUsage } from "@/lib/usage";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { BLOCK_TYPES, newBlockId, sanitizeBlocks, type Block, type Template, type Tone } from "./types";
@@ -125,6 +126,7 @@ export async function generateNewsletter(input: GenerateInput) {
     messages: [{ role: "user", content: user }],
   });
 
+  addUsage("text", response.usage.input_tokens + response.usage.output_tokens);
   if (response.stop_reason === "refusal") {
     throw new Error("AI가 이 요청에 대한 뉴스레터 작성을 거절했어요. 내용을 바꿔 다시 시도해 주세요.");
   }

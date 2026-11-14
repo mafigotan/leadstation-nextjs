@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSite } from "@/lib/supabase/server";
+import { limitMessage, metered } from "@/lib/usage";
 import { generatePageContent } from "@/lib/ai/generate-page";
 import { makeSlug } from "@/lib/slug";
 import { SLUG_RE } from "@/lib/site";
@@ -25,10 +26,10 @@ export async function createPage(_: FormState, formData: FormData): Promise<Form
 
   let content;
   try {
-    content = await generatePageContent(parsed.data);
+    content = await metered(supabase, site.id, ["text"], () => generatePageContent(parsed.data));
   } catch (e) {
     console.error("generatePageContent failed", e);
-    return { error: e instanceof Error && e.message.startsWith("AI") ? e.message : "페이지 생성 중 오류가 발생했어요. 잠시 후 다시 시도해 주세요." };
+    return { error: limitMessage(e) ?? (e instanceof Error && e.message.startsWith("AI") ? e.message : "페이지 생성 중 오류가 발생했어요. 잠시 후 다시 시도해 주세요.") };
   }
 
   const { data, error } = await supabase

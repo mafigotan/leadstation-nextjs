@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { UsagePanel, type UsageItem } from "./usage-panel";
 import { daysLeft, endsWithinTwoMonths } from "@/lib/site";
 import { activitySubject, activityVerb } from "@/lib/activity";
 import type { Site } from "@/lib/supabase/server";
@@ -64,9 +65,11 @@ export type DashboardData = {
   media: { id: string; url: string; prompt: string }[];
   leads: LeadWithPage[];
   people: (Member & { items: Activity[] })[];
+  usage: UsageItem[];
+  limitRequested: boolean;
 };
 
-export function DashboardView({ name, site, isAdmin, notifications, open, pages, articles, newsletters, media, leads, people }: DashboardData) {
+export function DashboardView({ name, site, isAdmin, notifications, open, pages, articles, newsletters, media, leads, people, usage, limitRequested }: DashboardData) {
   return (
     <div className="space-y-6">
       {endsWithinTwoMonths(site.active_until) && (
@@ -137,6 +140,8 @@ export function DashboardView({ name, site, isAdmin, notifications, open, pages,
           </ul>
         </section>
       )}
+
+      <UsagePanel usage={usage} pending={limitRequested} />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card title="최근 프로모션 페이지" href="/dashboard/pages">

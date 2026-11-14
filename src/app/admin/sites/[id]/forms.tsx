@@ -4,7 +4,24 @@ import { useActionState, useEffect, useState } from "react";
 import { Modal } from "@/components/visual-editor";
 import { addPayment, updateSiteAdmin, type AdminState } from "../../actions";
 
-type Site = { id: string; status: string; active_from: string | null; active_until: string | null; service_started_on: string | null };
+type Site = {
+  id: string;
+  status: string;
+  active_from: string | null;
+  active_until: string | null;
+  service_started_on: string | null;
+  newsletter_limit: number | null;
+  text_token_limit: number | null;
+  image_token_limit: number | null;
+};
+
+export type Usage = { kind: "newsletter" | "text" | "image"; used: number; limit_value: number | null };
+
+const LIMIT_FIELDS = [
+  ["newsletter_limit", "newsletter", "뉴스레터 발송 건수 한도", "건"],
+  ["text_token_limit", "text", "AI 본문 생성 토큰 한도", "토큰"],
+  ["image_token_limit", "image", "AI 이미지 생성 토큰 한도", "토큰"],
+] as const;
 
 function Status({ state }: { state: AdminState }) {
   if (state.error) return <p className="text-sm text-red-600">{state.error}</p>;
@@ -12,7 +29,7 @@ function Status({ state }: { state: AdminState }) {
   return null;
 }
 
-export function SiteAdminForm({ site, memo }: { site: Site; memo: string }) {
+export function SiteAdminForm({ site, memo, usage }: { site: Site; memo: string; usage: Usage[] }) {
   const [state, action, pending] = useActionState<AdminState, FormData>(updateSiteAdmin.bind(null, site.id), {});
   return (
     <form action={action} className="space-y-4">
@@ -38,6 +55,30 @@ export function SiteAdminForm({ site, memo }: { site: Site; memo: string }) {
       <div>
         <label className="label" htmlFor="service_started_on">서비스 개시일</label>
         <input id="service_started_on" name="service_started_on" type="date" defaultValue={site.service_started_on ?? ""} className="input" />
+      </div>
+      <div className="space-y-3 rounded-lg bg-slate-50 p-4">
+        <div>
+          <p className="text-sm font-semibold">이용 한도 <span className="font-normal text-slate-500">(매달 1일 초기화, 비워두면 무제한)</span></p>
+          <p className="text-xs text-slate-500">사용량이 한도의 90%를 넘으면 사이트 멤버의 대시보드에 알림이 가고, 한도를 다 쓰면 해당 작업이 막혀요.</p>
+        </div>
+        {LIMIT_FIELDS.map(([name, kind, label, unit]) => {
+          const u = usage.find((x) => x.kind === kind);
+          const value = site[name];
+          const pct = u && value ? Math.min(100, Math.round((u.used / value) * 100)) : null;
+          return (
+            <div key={name}>
+              <label className="label" htmlFor={name}>{label}</label>
+              <div className="flex items-center gap-2">
+                <input id={name} name={name} inputMode="numeric" defaultValue={value ?? ""} placeholder="무제한" className="input" />
+                <span className="shrink-0 text-sm text-slate-500">{unit}/월</span>
+              </div>
+              <p className="mt-1 text-xs text-slate-500">
+                이번 달 사용 {(u?.used ?? 0).toLocaleString()}{unit}
+                {pct !== null && <span className={pct >= 90 ? "font-semibold text-red-600" : ""}> ({pct}%)</span>}
+              </p>
+            </div>
+          );
+        })}
       </div>
       <div>
         <label className="label" htmlFor="admin_memo">운영 메모 <span className="font-normal text-slate-400">(슈퍼 관리자만 보여요)</span></label>

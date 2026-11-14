@@ -1,5 +1,6 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
+import { addUsage } from "@/lib/usage";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import {
@@ -53,6 +54,7 @@ async function ask<T extends z.ZodType>(schema: T, sys: string, user: string, ma
     system: sys,
     messages: [{ role: "user", content: user }],
   });
+  addUsage("text", res.usage.input_tokens + res.usage.output_tokens);
   if (res.stop_reason === "refusal") throw new Error("AI가 이 요청을 거절했어요. 주제를 바꿔 다시 시도해 주세요.");
   if (res.stop_reason === "max_tokens") throw new Error("글이 너무 길어 중간에 끊겼어요. 분량을 줄여 다시 시도해 주세요.");
   if (!res.parsed_output) throw new Error("AI 응답을 읽지 못했어요. 다시 시도해 주세요.");

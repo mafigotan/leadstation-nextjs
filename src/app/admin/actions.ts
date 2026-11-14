@@ -11,6 +11,12 @@ const date = (v: FormDataEntryValue | null) => {
   return DATE_RE.test(s) ? s : null;
 };
 
+/** Empty means no limit. Accepts "1,000,000" style input. */
+const limit = (v: FormDataEntryValue | null) => {
+  const s = String(v ?? "").replace(/[^\d]/g, "");
+  return s ? Number(s) : null;
+};
+
 export async function setSuspended(userId: string, suspend: boolean, _: AdminState, formData: FormData): Promise<AdminState> {
   const { supabase, user } = await requireSuperAdmin();
   if (userId === user.id) return { error: "내 계정은 정지할 수 없어요." };
@@ -35,6 +41,9 @@ export async function updateSiteAdmin(siteId: string, _: AdminState, formData: F
       active_until,
       service_started_on: date(formData.get("service_started_on")),
       admin_memo: String(formData.get("admin_memo") ?? "").slice(0, 2000),
+      newsletter_limit: limit(formData.get("newsletter_limit")),
+      text_token_limit: limit(formData.get("text_token_limit")),
+      image_token_limit: limit(formData.get("image_token_limit")),
     })
     .eq("id", siteId);
   if (error) return { error: "저장하지 못했어요: " + error.message };
@@ -89,5 +98,11 @@ export async function addPayment(siteId: string, _: AdminState, formData: FormDa
 export async function deletePayment(id: string) {
   const { supabase } = await requireSuperAdmin();
   await supabase.from("site_payments").delete().eq("id", id);
+  revalidatePath("/admin", "layout");
+}
+
+export async function closeLimitRequest(id: string) {
+  const { supabase } = await requireSuperAdmin();
+  await supabase.from("limit_requests").update({ status: "done", handled_at: new Date().toISOString() }).eq("id", id);
   revalidatePath("/admin", "layout");
 }

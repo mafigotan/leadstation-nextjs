@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSite } from "@/lib/supabase/server";
+import { metered } from "@/lib/usage";
 import { makeSlug } from "@/lib/slug";
 import { loadWriterSettings } from "@/lib/writer/settings";
 import { cleanSlug, generateArticle, generateOutline, suggestSeo, suggestTitles, transformText, type TransformAction } from "@/lib/writer/ai";
@@ -55,7 +56,8 @@ export async function createOutline(rawBrief: Partial<Brief>): Promise<{ outline
   const brief = cleanBrief(rawBrief);
   if (!brief.keyword) return { error: "포커스 키워드를 입력해 주세요." };
   try {
-    return { outline: await generateOutline(brief, await loadWriterSettings(supabase, site.id)) };
+    const settings = await loadWriterSettings(supabase, site.id);
+    return { outline: await metered(supabase, site.id, ["text"], () => generateOutline(brief, settings)) };
   } catch (e) {
     return { error: aiError(e, "개요를 만들지 못했어요. 다시 시도해 주세요.") };
   }
@@ -79,7 +81,8 @@ export async function createArticle(rawBrief: Partial<Brief>, outline: Outline |
 
   let id: string;
   try {
-    const a = await generateArticle(brief, await loadWriterSettings(supabase, site.id), cleanOutline);
+    const settings = await loadWriterSettings(supabase, site.id);
+    const a = await metered(supabase, site.id, ["text"], () => generateArticle(brief, settings, cleanOutline));
     const slug = await uniqueSlug(supabase, site.id, a.slug);
     const { data, error } = await supabase
       .from("articles")
@@ -172,10 +175,13 @@ export async function aiTransform(action: string, text: string, ctx: Ctx): Promi
   if (!ACTIONS.includes(action as TransformAction)) return { error: "알 수 없는 작업이에요." };
   if (!text.trim()) return { error: "다시 쓸 내용이 없어요." };
   try {
-    const out = await transformText(
-      action as TransformAction,
-      { text: s(text, 8000), title: s(ctx.title, 200), keyword: s(ctx.keyword, 100), language: lang(ctx.language) },
-      await loadWriterSettings(supabase, site.id),
+    const settings = await loadWriterSettings(supabase, site.id);
+    const out = await metered(supabase, site.id, ["text"], () =>
+      transformText(
+        action as TransformAction,
+        { text: s(text, 8000), title: s(ctx.title, 200), keyword: s(ctx.keyword, 100), language: lang(ctx.language) },
+        settings,
+      ),
     );
     return { text: out };
   } catch (e) {
@@ -186,9 +192,12 @@ export async function aiTransform(action: string, text: string, ctx: Ctx): Promi
 export async function aiTitles(blocks: Block[], ctx: Ctx): Promise<{ titles?: string[]; error?: string }> {
   const { supabase, site } = await requireSite();
   try {
-    const titles = await suggestTitles(
-      { title: s(ctx.title, 200), keyword: s(ctx.keyword, 100), body: articleText(sanitizeBlocks(blocks)), language: lang(ctx.language) },
-      await loadWriterSettings(supabase, site.id),
+    const settings = await loadWriterSettings(supabase, site.id);
+    const titles = await metered(supabase, site.id, ["text"], () =>
+      suggestTitles(
+        { title: s(ctx.title, 200), keyword: s(ctx.keyword, 100), body: articleText(sanitizeBlocks(blocks)), language: lang(ctx.language) },
+        settings,
+      ),
     );
     return { titles };
   } catch (e) {
@@ -199,9 +208,12 @@ export async function aiTitles(blocks: Block[], ctx: Ctx): Promise<{ titles?: st
 export async function aiSeo(blocks: Block[], ctx: Ctx) {
   const { supabase, site } = await requireSite();
   try {
-    const seo = await suggestSeo(
-      { title: s(ctx.title, 200), keyword: s(ctx.keyword, 100), body: articleText(sanitizeBlocks(blocks)), language: lang(ctx.language) },
-      await loadWriterSettings(supabase, site.id),
+    const settings = await loadWriterSettings(supabase, site.id);
+    const seo = await metered(supabase, site.id, ["text"], () =>
+      suggestSeo(
+        { title: s(ctx.title, 200), keyword: s(ctx.keyword, 100), body: articleText(sanitizeBlocks(blocks)), language: lang(ctx.language) },
+        settings,
+      ),
     );
     return { seo };
   } catch (e) {
