@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { siteUrl } from "@/lib/slug";
 
-export type AuthState = { error?: string; message?: string };
+export type AuthState = { error?: string; message?: string; sentTo?: string };
 
 function readCredentials(formData: FormData) {
   return {
@@ -32,7 +32,7 @@ export async function signUp(_: AuthState, formData: FormData): Promise<AuthStat
   });
   if (error) return { error: error.message };
   if (data.session) redirect("/dashboard");
-  return { message: "확인 메일을 보냈어요. 메일의 링크를 누르면 가입이 완료돼요." };
+  return { message: "확인 메일을 보냈어요. 메일의 링크를 누르면 가입이 완료돼요.", sentTo: email };
 }
 
 export async function signOut() {
