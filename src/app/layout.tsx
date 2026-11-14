@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
 import { GlobalLoading } from "@/components/global-loading";
+import { EnvBadge } from "@/components/env-badge";
 
 const font = Noto_Sans_KR({ subsets: ["latin"], variable: "--font-noto", display: "swap" });
 
@@ -15,6 +16,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="ko" className={font.variable}>
       <body>
         <GlobalLoading />
+        <EnvBadge />
         {children}
       </body>
     </html>

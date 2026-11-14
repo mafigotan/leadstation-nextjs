@@ -9,7 +9,7 @@ function subdomainHandle(host: string | null): string | null {
   const h = host.toLowerCase().split(":")[0];
   if (!h.endsWith(`.${root}`)) return null;
   const sub = h.slice(0, -(root.length + 1));
-  if (!sub || sub === "www" || sub.includes(".") || !HANDLE_RE.test(sub)) return null;
+  if (!sub || sub === "www" || sub === "staging" || sub.includes(".") || !HANDLE_RE.test(sub)) return null;
   return sub;
 }
 

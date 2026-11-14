@@ -2,7 +2,7 @@
 
 export const RESERVED_HANDLES = new Set([
   "www", "app", "api", "admin", "mail", "smtp", "ftp", "dashboard", "login", "help",
-  "support", "blog", "docs", "status", "static", "assets", "cdn", "dev", "test", "leadstation",
+  "support", "blog", "docs", "status", "static", "assets", "cdn", "dev", "test", "leadstation", "staging",
 ]);
 
 export const HANDLE_RE = /^[a-z0-9]([a-z0-9-]{1,28})[a-z0-9]$/;
