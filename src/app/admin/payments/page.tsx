@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireSuperAdmin } from "@/lib/supabase/server";
 import { todayKst } from "@/lib/site";
 import { METHOD_LABEL, Table, Th, fmtDate, won } from "../ui";
+import { PaymentForm } from "../sites/[id]/forms";
 
 type Row = {
   id: string; site_id: string; paid_on: string; amount: number; method: string; period_from: string | null; period_to: string | null;
@@ -10,12 +11,13 @@ type Row = {
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-export default async function AdminPayments({ searchParams }: { searchParams: Promise<{ from?: string; to?: string; method?: string }> }) {
+export default async function AdminPayments({ searchParams }: { searchParams: Promise<{ from?: string; to?: string; method?: string; q?: string }> }) {
   const sp = await searchParams;
   const today = todayKst();
   const from = DATE_RE.test(sp.from ?? "") ? sp.from! : `${today.slice(0, 4)}-01-01`;
   const to = DATE_RE.test(sp.to ?? "") ? sp.to! : today;
   const method = sp.method && METHOD_LABEL[sp.method] ? sp.method : "";
+  const q = (sp.q ?? "").trim().toLowerCase();
   const { supabase } = await requireSuperAdmin();
 
   let query = supabase
@@ -27,7 +29,14 @@ export default async function AdminPayments({ searchParams }: { searchParams: Pr
     .limit(1000);
   if (method) query = query.eq("method", method);
   const { data, error } = await query;
-  const rows = (data ?? []) as unknown as Row[];
+  const rows = ((data ?? []) as unknown as Row[]).filter(
+    (r) => !q || [r.sites?.handle, r.sites?.name, r.payer, r.memo].some((v) => v?.toLowerCase().includes(q)),
+  );
+  const { data: allSites } = await supabase.from("sites").select("id, handle, name, active_until").order("handle");
+  const siteOptions = (allSites ?? []).map((s) => ({
+    id: s.id,
+    label: `${s.name ? `${s.name} (${s.handle})` : s.handle}${s.active_until ? ` · ~${s.active_until}` : ""}`,
+  }));
   const total = rows.reduce((s, r) => s + Number(r.amount), 0);
 
   // Monthly totals for the selected range.
@@ -45,6 +54,7 @@ export default async function AdminPayments({ searchParams }: { searchParams: Pr
           <input type="date" name="from" defaultValue={from} className="input w-auto" />
           <span className="text-slate-400">~</span>
           <input type="date" name="to" defaultValue={to} className="input w-auto" />
+          <input name="q" defaultValue={sp.q ?? ""} placeholder="사이트, 입금자, 메모" className="input w-44" />
           <select name="method" defaultValue={method} className="input w-auto">
             <option value="">모든 방법</option>
             {Object.entries(METHOD_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
@@ -53,6 +63,13 @@ export default async function AdminPayments({ searchParams }: { searchParams: Pr
         </form>
       </div>
       {error && <p className="text-sm text-red-600">불러오지 못했어요: {error.message}</p>}
+      <details className="card p-5" open={rows.length === 0}>
+        <summary className="cursor-pointer font-bold">+ 서비스 이용료 결제 등록</summary>
+        <p className="mb-4 mt-1 text-sm text-slate-500">결제를 등록하면서 이용 기간을 넣으면, 그 사이트의 이용 종료일이 자동으로 늘어나고 활성으로 바뀌어요.</p>
+        <div className="max-w-2xl">
+          <PaymentForm sites={siteOptions} today={today} />
+        </div>
+      </details>
       {months.size > 1 && (
         <div className="flex flex-wrap gap-2">
           {[...months].map(([m, v]) => (

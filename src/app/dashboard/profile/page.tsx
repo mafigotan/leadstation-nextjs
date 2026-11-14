@@ -1,5 +1,5 @@
 import { requireSite } from "@/lib/supabase/server";
-import { rootDomain, siteUrl, userUrl } from "@/lib/site";
+import { daysLeft, endsWithinTwoMonths, rootDomain, siteUrl, userUrl } from "@/lib/site";
 import { MyInfoForm, SiteForm, MembersPanel, SiteSwitcher, type Member, type Invite } from "./forms";
 
 export const metadata = { title: "마이 프로필 | LEADstation" };
@@ -13,6 +13,8 @@ export default async function ProfilePage() {
       : Promise.resolve({ data: [] }),
   ]);
   const isAdmin = role === "admin";
+  const left = daysLeft(site.active_until);
+  const soon = endsWithinTwoMonths(site.active_until);
   const { data: payments } = isAdmin
     ? await supabase.from("site_payments").select("id, paid_on, amount, method, period_from, period_to").eq("site_id", site.id).order("paid_on", { ascending: false }).limit(24)
     : { data: [] };
@@ -50,14 +52,24 @@ export default async function ProfilePage() {
         )}
       </section>
 
-      {isAdmin && (
         <section className="card p-6">
-          <h2 className="font-bold">이용 기간과 결제 내역</h2>
-          <p className="mb-4 mt-1 text-sm text-slate-500">
-            서비스 개시일 {site.service_started_on ?? "-"} · 이용 기간{" "}
-            {site.active_from || site.active_until ? `${site.active_from ?? "-"} ~ ${site.active_until ?? "-"}` : "제한 없음"}
-          </p>
-          {payments?.length ? (
+          <h2 className="font-bold">서비스 이용 기간</h2>
+          <dl className="mt-3 grid grid-cols-[7rem_1fr] gap-y-1.5 text-sm">
+            <dt className="text-slate-500">서비스 개시일</dt>
+            <dd>{site.service_started_on ?? "-"}</dd>
+            <dt className="text-slate-500">이용 기간</dt>
+            <dd>
+              {site.active_from || site.active_until ? `${site.active_from ?? "-"} ~ ${site.active_until ?? "-"}` : "기간 제한 없음"}
+              {left !== null && (
+                <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-medium ${soon ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>
+                  {left === 0 ? "오늘 종료" : `${left}일 남음`}
+                </span>
+              )}
+            </dd>
+          </dl>
+          {soon && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">이용 기간이 곧 끝나요. 계속 이용하려면 LEADstation 운영팀에 연장을 문의해주세요.</p>}
+          {isAdmin && <h3 className="mb-2 mt-5 text-sm font-semibold">결제 내역</h3>}
+          {!isAdmin ? null : payments?.length ? (
             <table className="w-full text-sm">
               <thead className="text-left text-xs text-slate-500">
                 <tr><th className="py-1.5 font-medium">결제일</th><th className="py-1.5 text-right font-medium">금액</th><th className="py-1.5 pl-4 font-medium">이용 기간</th></tr>
@@ -76,7 +88,6 @@ export default async function ProfilePage() {
             <p className="text-sm text-slate-400">결제 내역이 없어요.</p>
           )}
         </section>
-      )}
 
       <section className="card p-6">
         <h2 className="font-bold">사이트 멤버</h2>

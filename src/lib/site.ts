@@ -61,3 +61,18 @@ export function siteBlockReason(s: SiteStatusFields): "inactive" | "not_started"
 export function isSiteLive(s: SiteStatusFields) {
   return siteBlockReason(s) === null;
 }
+
+/** Days left until the site's period ends (0 on the last day), or null when there is no end date. */
+export function daysLeft(activeUntil?: string | null): number | null {
+  if (!activeUntil) return null;
+  const ms = Date.parse(activeUntil + "T00:00:00Z") - Date.parse(todayKst() + "T00:00:00Z");
+  return Math.round(ms / 86400000);
+}
+
+/** True when the period ends within two months from today (Korean date). */
+export function endsWithinTwoMonths(activeUntil?: string | null): boolean {
+  if (!activeUntil) return false;
+  const t = new Date(todayKst() + "T00:00:00Z");
+  t.setUTCMonth(t.getUTCMonth() + 2);
+  return activeUntil <= t.toISOString().slice(0, 10);
+}

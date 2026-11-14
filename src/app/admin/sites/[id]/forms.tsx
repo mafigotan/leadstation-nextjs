@@ -50,10 +50,21 @@ export function SiteAdminForm({ site, memo }: { site: Site; memo: string }) {
   );
 }
 
-export function PaymentForm({ siteId, today }: { siteId: string; today: string }) {
+export type SiteOption = { id: string; label: string };
+
+export function PaymentForm({ siteId = "", sites, today }: { siteId?: string; sites?: SiteOption[]; today: string }) {
   const [state, action, pending] = useActionState<AdminState, FormData>(addPayment.bind(null, siteId), {});
   return (
     <form action={action} className="space-y-3">
+      {sites && (
+        <div>
+          <label className="label" htmlFor="site_id">사이트</label>
+          <select id="site_id" name="site_id" required defaultValue="" className="input">
+            <option value="" disabled>결제한 사이트를 선택하세요</option>
+            {sites.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </select>
+        </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor="paid_on">결제일</label>

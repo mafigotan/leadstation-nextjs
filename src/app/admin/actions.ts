@@ -44,8 +44,11 @@ export async function updateSiteAdmin(siteId: string, _: AdminState, formData: F
 
 const METHODS = ["transfer", "card", "cash", "other"];
 
+/** Records an offline payment. siteId is empty when the site is chosen in the form (payments page). */
 export async function addPayment(siteId: string, _: AdminState, formData: FormData): Promise<AdminState> {
   const { supabase } = await requireSuperAdmin();
+  siteId = siteId || String(formData.get("site_id") ?? "");
+  if (!siteId) return { error: "결제한 사이트를 선택해주세요." };
   const paid_on = date(formData.get("paid_on"));
   const amount = Number(String(formData.get("amount") ?? "").replace(/[^\d]/g, ""));
   const period_from = date(formData.get("period_from"));

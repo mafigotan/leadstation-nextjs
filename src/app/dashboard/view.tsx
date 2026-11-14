@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { daysLeft, endsWithinTwoMonths } from "@/lib/site";
 import { activitySubject, activityVerb } from "@/lib/activity";
 import type { Site } from "@/lib/supabase/server";
 import type { LeadWithPage } from "@/lib/leads";
@@ -68,6 +69,21 @@ export type DashboardData = {
 export function DashboardView({ name, site, isAdmin, notifications, open, pages, articles, newsletters, media, leads, people }: DashboardData) {
   return (
     <div className="space-y-6">
+      {endsWithinTwoMonths(site.active_until) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+          <div>
+            <p className="font-semibold">
+              서비스 이용 기간이 {site.active_until}에 끝나요
+              {(() => {
+                const d = daysLeft(site.active_until);
+                return d === null ? "" : d <= 0 ? " (오늘 종료)" : ` (${d}일 남음)`;
+              })()}
+            </p>
+            <p className="mt-0.5 text-sm">기간이 끝나면 대시보드와 공개 페이지, 블로그를 이용할 수 없어요. 계속 이용하려면 LEADstation 운영팀에 연장을 문의해주세요.</p>
+          </div>
+          <Link href="/dashboard/profile" className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-amber-100">이용 기간 보기</Link>
+        </div>
+      )}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">{name} 님, 안녕하세요</h1>
