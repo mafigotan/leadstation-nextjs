@@ -10,10 +10,10 @@ import { GENDERS, LEAD_FIELD_LABEL, formFields, type LeadField } from "@/lib/lea
 export function EventField({ value }: { value: string }) {
   return (
     <div>
-      <span className="label">이벤트</span>
+      <span className="label">이벤트 *</span>
       <input type="hidden" name="event" value={value} />
       <div className={`rounded-lg border px-3 py-2 text-sm ${value ? "border-slate-300 bg-white font-medium" : "border-dashed border-slate-300 bg-slate-50 text-slate-400"}`}>
-        {value || "위 이벤트에 참여하면 결과가 자동으로 입력돼요."}
+        {value || "위 이벤트에 참여하면 결과가 자동으로 입력돼요. (필수)"}
       </div>
     </div>
   );
@@ -53,6 +53,7 @@ export function LeadFormFields({ fields: chosen, disabled }: { fields?: LeadFiel
 
 export function LeadForm({ pageId, sectionId, fields, ctaLabel, theme, event }: { pageId: string; sectionId?: string; fields?: LeadField[]; ctaLabel: string; theme: Theme; event?: boolean }) {
   const [eventResult, setEventResult] = useState("");
+  const [localError, setLocalError] = useState("");
   useEffect(() => {
     if (!event) return;
     const onMessage = (e: MessageEvent) => {
@@ -77,7 +78,15 @@ export function LeadForm({ pageId, sectionId, fields, ctaLabel, theme, event }: 
   }
 
   return (
-    <form action={action} className="space-y-4 rounded-xl border border-slate-200 p-6 shadow-sm">
+    <form
+      action={action}
+      onSubmit={(e) => {
+        if (event && !eventResult) {
+          e.preventDefault();
+          setLocalError("위 이벤트에 먼저 참여해 주세요.");
+        } else setLocalError("");
+      }}
+      className="space-y-4 rounded-xl border border-slate-200 p-6 shadow-sm">
       <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden />
       <LeadFormFields fields={fields} />
       {event && <EventField value={eventResult} />}
@@ -89,7 +98,7 @@ export function LeadForm({ pageId, sectionId, fields, ctaLabel, theme, event }: 
         <input type="checkbox" name="marketing" className="mt-1" />
         <span>[선택] 이벤트 및 마케팅 정보 수신에 동의합니다.</span>
       </label>
-      {state.error && <p className="text-sm text-red-600">{state.error}</p>}
+      {(localError || state.error) && <p className="text-sm text-red-600">{localError || state.error}</p>}
       <button type="submit" disabled={pending} className={`w-full rounded-lg px-4 py-3 font-semibold text-white disabled:opacity-60 ${t.bg}`}>
         {pending ? "신청 중..." : ctaLabel}
       </button>

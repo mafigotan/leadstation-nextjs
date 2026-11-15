@@ -14,7 +14,7 @@ export const SECTION_LABELS: Record<SectionType, string> = {
   text: "문단",
   quote: "강조 문구",
   button: "버튼",
-  form: "리드 폼",
+  form: "신청 폼",
   event: "이벤트",
   divider: "구분선",
 };

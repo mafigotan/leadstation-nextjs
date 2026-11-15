@@ -44,7 +44,8 @@ export async function submitLead(pageId: string, sectionId: string, _: LeadState
   if (!fields.some((f) => row[f] !== undefined)) return { error: "신청 정보를 입력해 주세요." };
   if (hasEvent(sections)) {
     const ev = String(formData.get("event") ?? "").trim().slice(0, 200);
-    if (ev) row.event = ev;
+    if (!ev) return { error: "위 이벤트에 먼저 참여해 주세요." };
+    row.event = ev;
   }
 
   const { error } = await supabase.from("leads").insert(row);

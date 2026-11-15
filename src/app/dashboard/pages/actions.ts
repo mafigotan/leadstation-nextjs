@@ -28,7 +28,7 @@ export async function createPage(_: FormState, formData: FormData): Promise<Form
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "입력값을 확인해 주세요." };
   const withForm = formData.get("lead_form") !== "off";
   const leadFields = withForm ? cleanFields(formData.getAll("lead_fields")) : [];
-  if (withForm && !leadFields.length) return { error: "리드 폼에 넣을 필드를 하나 이상 선택해 주세요." };
+  if (withForm && !leadFields.length) return { error: "신청 폼에 넣을 필드를 하나 이상 선택해 주세요." };
   const brief = { ...parsed.data, lead_fields: leadFields };
 
   let content: PageContent;

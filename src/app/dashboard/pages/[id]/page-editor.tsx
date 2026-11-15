@@ -22,7 +22,7 @@ const PALETTE: PaletteItem[] = [
   { type: "quote", label: SECTION_LABELS.quote, icon: "❝" },
   { type: "button", label: SECTION_LABELS.button, icon: "▭", hint: "신청 폼이나 링크로 이동" },
   { type: "event", label: SECTION_LABELS.event, icon: "🎮", hint: "AI가 만드는 룰렛, 카드 맞추기 등" },
-  { type: "form", label: SECTION_LABELS.form, icon: "✉", hint: "리드 수집 폼 (페이지당 1개)" },
+  { type: "form", label: SECTION_LABELS.form, icon: "✉", hint: "신청자 정보 수집 (페이지당 1개)" },
   { type: "divider", label: SECTION_LABELS.divider, icon: "—" },
 ];
 
@@ -44,7 +44,7 @@ function SectionTools({ s, update, openImage }: { s: Section; update: (p: Partia
     case "hero":
       return (
         <>
-          <ToolInput value={s.url} onChange={(url) => update({ url: url.trim() })} placeholder="버튼 링크 (비우면 리드 폼)" width={180} />
+          <ToolInput value={s.url} onChange={(url) => update({ url: url.trim() })} placeholder="버튼 링크 (비우면 신청 폼)" width={180} />
           <ToolBtn label="이미지 변경" onClick={() => openImage("main")}>🖼 이미지</ToolBtn>
         </>
       );
@@ -59,7 +59,7 @@ function SectionTools({ s, update, openImage }: { s: Section; update: (p: Partia
         </>
       );
     case "button":
-      return <ToolInput value={s.url} onChange={(url) => update({ url: url.trim() })} placeholder="링크 (비우면 리드 폼)" width={200} />;
+      return <ToolInput value={s.url} onChange={(url) => update({ url: url.trim() })} placeholder="링크 (비우면 신청 폼)" width={200} />;
     case "event":
       return <ToolBtn label="AI로 게임 만들기" onClick={() => openImage("game")}>🎮 {s.game ? "게임 다시 만들기" : "AI로 게임 만들기"}</ToolBtn>;
     case "form": {
@@ -97,7 +97,7 @@ function GameMaker({ s, update, close, context }: { s: Section; update: (p: Part
     });
   return (
     <div className="space-y-3">
-      <p className="text-sm text-slate-600">어떤 게임을 넣을지 적어주세요. AI가 게임을 만들고, 방문자의 게임 결과는 리드 폼의 이벤트 칸에 자동으로 기록돼요.</p>
+      <p className="text-sm text-slate-600">어떤 게임을 넣을지 적어주세요. AI가 게임을 만들고, 방문자의 게임 결과는 신청 폼의 이벤트 칸에 자동으로 기록돼요.</p>
       <textarea
         value={desc}
         onChange={(e) => setDesc(e.target.value)}
@@ -263,7 +263,7 @@ export function PageEditor({
         settingsLabel="공개·설정"
         canvasClassName="card bg-white pb-6"
         canDuplicate={(s) => s.type !== "form"}
-        canAdd={(type) => (type === "form" && sections.some((s) => s.type === "form") ? "리드 폼은 프로모션에 하나만 넣을 수 있어요." : null)}
+        canAdd={(type) => (type === "form" && sections.some((s) => s.type === "form") ? "신청 폼은 프로모션에 하나만 넣을 수 있어요." : null)}
         modalTitle={(key) => (key === "game" ? "AI로 게임 만들기" : "이미지")}
         renderBlock={(s, _i, { onImage, ed }) => (
           <SectionView s={s} theme={t} ed={ed} onImage={onImage} form={<MockForm label={s.label || formLabel} theme={theme} fields={s.fields} event={hasEvent(sections)} />} />

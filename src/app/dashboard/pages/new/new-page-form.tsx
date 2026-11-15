@@ -37,7 +37,7 @@ export function NewPageForm() {
         </select>
       </div>
       <div>
-        <span className="label">리드 폼 삽입</span>
+        <span className="label">신청 폼 삽입</span>
         <div className="flex gap-4 text-sm">
           <label className="flex items-center gap-2">
             <input type="radio" name="lead_form" value="on" checked={withForm} onChange={() => setWithForm(true)} /> 삽입
@@ -49,7 +49,7 @@ export function NewPageForm() {
       </div>
       {withForm && (
         <fieldset className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <legend className="px-1 text-sm font-medium text-slate-700">리드 폼(lead form) 필드 선택</legend>
+          <legend className="px-1 text-sm font-medium text-slate-700">신청 폼 필드 선택</legend>
           <p className="mb-3 text-xs text-slate-500">선택한 필드로 프로모션 페이지에 신청 폼을 넣어요. 기타를 뺀 필드는 필수 입력이에요.</p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {LEAD_FIELDS.map((f) => (
