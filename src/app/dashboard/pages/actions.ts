@@ -147,3 +147,51 @@ export async function applyEventTemplate(templateId: string, request: string, co
     return { error: limitMessage(e) ?? (e instanceof Error && e.message.startsWith("AI") ? e.message : "설정을 적용하지 못했어요. 잠시 후 다시 시도해 주세요.") };
   }
 }
+
+export type TemplateRequest = { id: string; game_type: string; description: string; status: string; admin_note: string; created_at: string };
+
+/** This site's recent template requests, newest first. */
+export async function listTemplateRequests(): Promise<TemplateRequest[]> {
+  const { supabase, site } = await requireSite();
+  const { data } = await supabase
+    .from("event_template_requests")
+    .select("id, game_type, description, status, admin_note, created_at")
+    .eq("site_id", site.id)
+    .order("created_at", { ascending: false })
+    .limit(5);
+  return data ?? [];
+}
+
+/** Asks the super admins for a new event template and emails them. */
+export async function requestEventTemplate(input: { gameType: string; description: string; usage: string }): Promise<{ ok?: boolean; error?: string }> {
+  const { supabase, user, profile, site } = await requireSite();
+  const gameType = String(input.gameType ?? "").trim().slice(0, 50);
+  const description = String(input.description ?? "").trim().slice(0, 2000);
+  const usage = String(input.usage ?? "").trim().slice(0, 1000);
+  if (!description) return { error: "원하는 게임을 설명해 주세요." };
+  const { error } = await supabase.rpc("request_event_template", { p_game_type: gameType, p_description: description, p_usage: usage });
+  if (error) {
+    if (error.code === "P0005") return { error: "처리 중인 요청이 이미 3건 있어요. 답변을 받은 뒤 다시 요청해 주세요." };
+    console.error("template request failed", error);
+    return { error: "요청을 보내지 못했어요. 잠시 후 다시 시도해 주세요." };
+  }
+  try {
+    const { esc, superAdminEmails } = await import("@/lib/admin-notify");
+    const { sendOne } = await import("@/lib/newsletter/mailer");
+    const { siteUrl } = await import("@/lib/site");
+    const html = `<div style="font-family:sans-serif;font-size:14px;line-height:1.6">
+      <p><b>${esc(site.name || site.handle)}</b> (${esc(site.handle)}) 사이트에서 새 이벤트 템플릿을 요청했어요.</p>
+      <p>요청자: ${esc(profile.full_name)} &lt;${esc(user.email ?? "")}&gt;</p>
+      ${gameType ? `<p>게임 종류: ${esc(gameType)}</p>` : ""}
+      <p>원하는 게임:<br>${esc(description).replace(/\n/g, "<br>")}</p>
+      ${usage ? `<p>사용할 프로모션:<br>${esc(usage).replace(/\n/g, "<br>")}</p>` : ""}
+      <p><a href="${siteUrl()}/admin/event-templates">슈퍼 관리자 화면에서 확인하기</a></p></div>`;
+    for (const to of await superAdminEmails()) {
+      await sendOne({ to, subject: `[LEADstation] 이벤트 템플릿 요청: ${site.name || site.handle}`, html, fromName: "LEADstation", replyTo: user.email ?? undefined });
+    }
+  } catch (e) {
+    // The request is saved and shows in the super admin screen even if the email fails.
+    console.error("template request email failed", e);
+  }
+  return { ok: true };
+}

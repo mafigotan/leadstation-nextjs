@@ -1,5 +1,7 @@
 "use server";
 
+import { esc, superAdminEmails } from "@/lib/admin-notify";
+
 import { revalidatePath } from "next/cache";
 import { requireSite, requireUser } from "@/lib/supabase/server";
 
@@ -25,23 +27,6 @@ export async function answerJoinRequest(requestId: string, approve: boolean) {
 }
 
 const KIND_LABEL: Record<string, string> = { newsletter: "뉴스레터 발송 건수", text: "AI 본문 생성 토큰", image: "AI 이미지 생성 토큰" };
-
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
-
-/** Super admin email addresses (service role), plus ADMIN_NOTIFY_EMAIL if set. */
-async function superAdminEmails() {
-  const out = new Set((process.env.ADMIN_NOTIFY_EMAIL ?? "").split(/[,\s]+/).filter(Boolean));
-  const { createAdminClient } = await import("@/lib/supabase/admin");
-  const admin = createAdminClient();
-  if (admin) {
-    const { data } = await admin.from("platform_admins").select("user_id");
-    for (const r of data ?? []) {
-      const { data: u } = await admin.auth.admin.getUserById(r.user_id);
-      if (u.user?.email) out.add(u.user.email);
-    }
-  }
-  return [...out];
-}
 
 /** "이용 한도 늘리기": records the request and emails the super admins. */
 export async function requestLimitIncrease(kinds: string[], message: string): Promise<{ ok?: boolean; error?: string }> {

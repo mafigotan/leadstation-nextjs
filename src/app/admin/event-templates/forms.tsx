@@ -3,14 +3,14 @@
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { EVENT_MESSAGE, GAME_HEIGHT, gameDocument, type EventGame } from "@/lib/event-game";
-import { createTemplate, deleteTemplate, pollTemplate, reviseTemplate, setTemplatePublic, updateTemplate, type TemplateState } from "./actions";
+import { answerTemplateRequest, createTemplate, deleteTemplate, pollTemplate, reviseTemplate, setTemplatePublic, updateTemplate, type TemplateState } from "./actions";
 
 const Msg = ({ s }: { s: TemplateState }) =>
   s.error ? <p className="text-sm text-red-600">{s.error}</p> : s.message ? <p className="text-sm text-emerald-700">{s.message}</p> : null;
 
-export function NewTemplateForm() {
+export function NewTemplateForm({ initial }: { initial?: { name: string; description: string; prompt: string } }) {
   const [state, action, pending] = useActionState<TemplateState, FormData>(createTemplate, {});
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!initial);
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="btn-primary">
@@ -24,11 +24,11 @@ export function NewTemplateForm() {
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor="name">이름 *</label>
-          <input id="name" name="name" required maxLength={100} className="input" placeholder="예: 행운의 룰렛" />
+          <input id="name" name="name" required maxLength={100} defaultValue={initial?.name} className="input" placeholder="예: 행운의 룰렛" />
         </div>
         <div>
           <label className="label" htmlFor="description">유저에게 보일 설명</label>
-          <input id="description" name="description" maxLength={500} className="input" placeholder="예: 경품과 확률을 정할 수 있는 8칸 룰렛" />
+          <input id="description" name="description" maxLength={500} defaultValue={initial?.description} className="input" placeholder="예: 경품과 확률을 정할 수 있는 8칸 룰렛" />
         </div>
       </div>
       <div>
@@ -39,6 +39,7 @@ export function NewTemplateForm() {
           required
           rows={5}
           maxLength={4000}
+          defaultValue={initial?.prompt}
           className="input"
           placeholder="예: 6~10칸으로 바꿀 수 있는 룰렛. 돌리기 버튼을 누르면 감속하며 멈추고, 당첨 칸이 빛나며 컨페티가 터짐. 꽝도 있음. 각 칸의 문구, 색, 당첨 확률을 설정에서 바꿀 수 있게."
         />
@@ -171,5 +172,25 @@ export function DeleteButton({ id }: { id: string }) {
     </span>
   ) : (
     <button type="button" onClick={() => setSure(true)} className="text-sm text-red-600 hover:underline">삭제</button>
+  );
+}
+
+/** 완료 / 반려 with an optional note for a user's template request. */
+export function RequestAnswer({ id, templates }: { id: string; templates: { id: string; name: string }[] }) {
+  const [done, doneAction, p1] = useActionState<TemplateState, FormData>(answerTemplateRequest.bind(null, id, "done"), {});
+  const [rej, rejAction, p2] = useActionState<TemplateState, FormData>(answerTemplateRequest.bind(null, id, "rejected"), {});
+  return (
+    <form className="flex flex-wrap items-center gap-2">
+      <input name="note" maxLength={1000} placeholder="유저에게 보낼 답변 (선택)" className="input h-8 min-w-48 flex-1 py-1 text-xs" />
+      <select name="template_id" className="input h-8 w-auto py-1 text-xs" defaultValue="">
+        <option value="">연결할 템플릿 (선택)</option>
+        {templates.map((t) => (
+          <option key={t.id} value={t.id}>{t.name}</option>
+        ))}
+      </select>
+      <button formAction={doneAction} disabled={p1 || p2} className="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700">완료</button>
+      <button formAction={rejAction} disabled={p1 || p2} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50">반려</button>
+      {(done.error || rej.error) && <span className="text-xs text-red-600">{done.error || rej.error}</span>}
+    </form>
   );
 }

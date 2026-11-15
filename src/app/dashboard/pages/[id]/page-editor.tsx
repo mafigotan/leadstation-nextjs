@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition, type ReactNode } from "react";
-import { applyEventTemplate, listEventTemplates, savePageSections, type TemplateOption } from "../actions";
+import { applyEventTemplate, listEventTemplates, listTemplateRequests, requestEventTemplate, type TemplateRequest, savePageSections, type TemplateOption } from "../actions";
 import { gameDocument, type EventGame } from "@/lib/event-game";
 import { THEMES, THEME_CLASSES, type PageContent, type Theme } from "@/lib/types";
 import { SECTION_LABELS, emptySection, hasEvent, toSections, type Section, type SectionType } from "@/lib/page-sections";
@@ -84,9 +84,93 @@ function SectionTools({ s, update, openImage }: { s: Section; update: (p: Partia
   return null;
 }
 
+const GAME_TYPES = ["룰렛", "카드 맞추기", "숨은그림찾기", "긁는 복권", "퀴즈", "슬롯머신", "사다리 타기", "선물 상자 고르기", "기타"];
+const REQUEST_STATUS: Record<string, [string, string]> = {
+  pending: ["검토 중", "bg-amber-50 text-amber-700"],
+  done: ["완료", "bg-emerald-50 text-emerald-700"],
+  rejected: ["반려", "bg-slate-100 text-slate-600"],
+};
+
+/** Asks the super admins for a template that is not in the list. */
+function TemplateRequestForm({ onBack }: { onBack: () => void }) {
+  const [gameType, setGameType] = useState("");
+  const [description, setDescription] = useState("");
+  const [usage, setUsage] = useState("");
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [mine, setMine] = useState<TemplateRequest[]>([]);
+  const [pending, start] = useTransition();
+  useEffect(() => {
+    listTemplateRequests().then(setMine);
+  }, []);
+  const send = () =>
+    start(async () => {
+      const r = await requestEventTemplate({ gameType, description, usage });
+      if (r.error) return setMsg({ ok: false, text: r.error });
+      setMsg({ ok: true, text: "요청을 보냈어요. 템플릿이 준비되면 대시보드 알림으로 알려드릴게요." });
+      setGameType("");
+      setDescription("");
+      setUsage("");
+      listTemplateRequests().then(setMine);
+    });
+  return (
+    <div className="space-y-4">
+      <button type="button" onClick={onBack} className="text-sm text-slate-500 hover:underline">← 템플릿 목록으로</button>
+      <p className="text-sm text-slate-600">원하는 이벤트 게임을 알려주시면 운영팀이 템플릿으로 만들어 공개해 드려요.</p>
+      <div>
+        <span className="label">게임 종류</span>
+        <div className="flex flex-wrap gap-1.5">
+          {GAME_TYPES.map((g) => (
+            <button key={g} type="button" onClick={() => setGameType(gameType === g ? "" : g)} className={`rounded-full border px-3 py-1 text-xs ${gameType === g ? "border-indigo-500 bg-indigo-50 text-indigo-700" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
+              {g}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <label className="label" htmlFor="tr-desc">원하는 게임 설명 *</label>
+        <textarea
+          id="tr-desc"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={5}
+          maxLength={2000}
+          className="input"
+          placeholder={"어떻게 진행되는 게임인지 자유롭게 적어주세요.\n예: 선물 상자 9개 중 하나를 고르면 열리면서 경품이 나와요. 상자가 흔들리는 효과가 있으면 좋겠어요. 경품은 3~5종, 꽝도 있어요."}
+        />
+      </div>
+      <div>
+        <label className="label" htmlFor="tr-usage">어떤 프로모션에 쓰실 건가요? (선택)</label>
+        <input id="tr-usage" value={usage} onChange={(e) => setUsage(e.target.value)} maxLength={1000} className="input" placeholder="예: 12월 연말 감사 이벤트, 신규 가입자 대상" />
+      </div>
+      {msg && <p className={`text-sm ${msg.ok ? "text-emerald-700" : "text-red-600"}`}>{msg.text}</p>}
+      <button type="button" disabled={pending || !description.trim()} onClick={send} className="btn-primary w-full">{pending ? "보내는 중..." : "템플릿 요청하기"}</button>
+      {mine.length > 0 && (
+        <div className="border-t border-slate-100 pt-3">
+          <p className="mb-2 text-xs font-medium text-slate-500">우리 사이트의 최근 요청</p>
+          <ul className="space-y-2 text-sm">
+            {mine.map((r) => {
+              const [label, cls] = REQUEST_STATUS[r.status] ?? REQUEST_STATUS.pending;
+              return (
+                <li key={r.id} className="flex items-start gap-2">
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${cls}`}>{label}</span>
+                  <span className="min-w-0">
+                    <span className="line-clamp-1 text-slate-700">{r.game_type ? `[${r.game_type}] ` : ""}{r.description}</span>
+                    {r.admin_note && <span className="block text-xs text-slate-500">답변: {r.admin_note}</span>}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function GameMaker({ s, update, close, context }: { s: Section; update: (p: Partial<Section>) => void; close: () => void; context: string }) {
   const [templates, setTemplates] = useState<TemplateOption[] | null>(null);
   const [picked, setPicked] = useState<string>(s.game?.template_id ?? "");
+  const [requesting, setRequesting] = useState(false);
   const [desc, setDesc] = useState("");
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
@@ -107,12 +191,22 @@ function GameMaker({ s, update, close, context }: { s: Section; update: (p: Part
       close();
     });
 
+  if (requesting) return <TemplateRequestForm onBack={() => setRequesting(false)} />;
+  const requestLink = (
+    <button type="button" onClick={() => setRequesting(true)} className="w-full rounded-lg border border-dashed border-slate-300 py-2 text-sm text-slate-600 hover:bg-slate-50">
+      원하는 템플릿이 없나요? <span className="font-medium text-indigo-600">새 템플릿 요청하기</span>
+    </button>
+  );
+
   return (
     <div className="space-y-4">
       {templates === null ? (
           <p className="py-8 text-center text-sm text-slate-400">템플릿을 불러오는 중...</p>
         ) : !templates.length ? (
-          <p className="py-8 text-center text-sm text-slate-500">아직 공개된 이벤트 템플릿이 없어요.</p>
+          <>
+            <p className="py-6 text-center text-sm text-slate-500">아직 공개된 이벤트 템플릿이 없어요.</p>
+            {requestLink}
+          </>
         ) : (
           <>
             <div className="grid max-h-48 gap-2 overflow-y-auto sm:grid-cols-2">
@@ -135,6 +229,7 @@ function GameMaker({ s, update, close, context }: { s: Section; update: (p: Part
             <button type="button" disabled={pending || !current} onClick={() => run(() => applyEventTemplate(picked, desc, context))} className="btn-primary w-full">
               {pending ? "AI가 설정을 맞추고 있어요..." : desc.trim() ? "AI로 맞춰서 넣기" : "이 템플릿 넣기"}
             </button>
+            {requestLink}
           </>
         )}
       {s.game && !pending && <p className="text-xs text-slate-500">새로 넣으면 지금 게임이 바뀌어요. 저장해야 페이지에 반영돼요.</p>}

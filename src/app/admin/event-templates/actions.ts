@@ -134,3 +134,18 @@ export async function deleteTemplate(id: string) {
   revalidatePath(BASE);
   redirect(BASE);
 }
+
+/** 완료 or 반려 for a user's template request; the requester is notified on the dashboard. */
+export async function answerTemplateRequest(id: string, status: "done" | "rejected", _: TemplateState, formData: FormData): Promise<TemplateState> {
+  const { supabase } = await requireSuperAdmin();
+  const templateId = String(formData.get("template_id") ?? "");
+  const { error } = await supabase.rpc("answer_event_template_request", {
+    p_id: id,
+    p_status: status,
+    p_note: String(formData.get("note") ?? "").trim().slice(0, 1000),
+    p_template: /^[0-9a-f-]{36}$/.test(templateId) ? templateId : null,
+  });
+  if (error) return { error: "처리하지 못했어요: " + error.message };
+  revalidatePath(BASE);
+  return { ok: true };
+}
