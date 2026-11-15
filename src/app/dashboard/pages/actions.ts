@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { requireSite } from "@/lib/supabase/server";
 import { limitMessage, metered } from "@/lib/usage";
 import { generatePageContent } from "@/lib/ai/generate-page";
-import { generateGame } from "@/lib/ai/generate-game";
+import { fillTemplateConfig, generateFreeGame } from "@/lib/ai/generate-game";
 import type { EventGame } from "@/lib/event-game";
 import { makeSlug } from "@/lib/slug";
 import { SLUG_RE } from "@/lib/site";
@@ -110,15 +110,54 @@ export async function savePageSections(
   return {};
 }
 
-/** Makes the game of an event element (saved with the page by the editor). */
+/** Makes a one-off game for an event element (saved with the page by the editor). */
 export async function generateEventGame(description: string, context: string): Promise<{ game?: EventGame; error?: string }> {
   const { supabase, site } = await requireSite();
   const desc = String(description ?? "").trim().slice(0, 1000);
   if (!desc) return { error: "어떤 게임을 만들지 적어주세요." };
   try {
-    return { game: await metered(supabase, site.id, ["text"], () => generateGame(desc, String(context ?? "").slice(0, 1000))) };
+    const g = await metered(supabase, site.id, ["text"], () => generateFreeGame(desc, String(context ?? "").slice(0, 1000)));
+    return { game: { css: g.css, html: g.html, js: g.js, config: g.config } };
   } catch (e) {
-    console.error("generateGame failed", e);
+    console.error("generateFreeGame failed", e);
     return { error: limitMessage(e) ?? (e instanceof Error && e.message.startsWith("AI") ? e.message : "게임을 만들지 못했어요. 잠시 후 다시 시도해 주세요.") };
+  }
+}
+
+export type TemplateOption = { id: string; name: string; description: string; game: EventGame };
+
+/** Published event templates (with their default settings) for the editor. */
+export async function listEventTemplates(): Promise<TemplateOption[]> {
+  const { supabase } = await requireSite();
+  const { data } = await supabase
+    .from("event_templates")
+    .select("id, name, description, css, html, js, config")
+    .eq("is_public", true)
+    .eq("status", "ready")
+    .order("sort_order")
+    .order("created_at", { ascending: false });
+  return (data ?? []).map((t) => ({ id: t.id, name: t.name, description: t.description, game: { css: t.css, html: t.html, js: t.js, config: t.config, template_id: t.id } }));
+}
+
+/** A template's game; with a request, AI first adjusts its settings (prizes, texts, colors) for this promotion. */
+export async function applyEventTemplate(templateId: string, request: string, context: string): Promise<{ game?: EventGame; error?: string }> {
+  const { supabase, site } = await requireSite();
+  const { data: t } = await supabase
+    .from("event_templates")
+    .select("id, name, css, html, js, config, config_guide")
+    .eq("id", templateId)
+    .eq("is_public", true)
+    .eq("status", "ready")
+    .maybeSingle();
+  if (!t) return { error: "템플릿을 찾을 수 없어요." };
+  const game: EventGame = { css: t.css, html: t.html, js: t.js, config: t.config, template_id: t.id };
+  const req = String(request ?? "").trim().slice(0, 1000);
+  if (!req) return { game };
+  try {
+    game.config = await metered(supabase, site.id, ["text"], () => fillTemplateConfig(t, req, String(context ?? "").slice(0, 1000)));
+    return { game };
+  } catch (e) {
+    console.error("fillTemplateConfig failed", e);
+    return { error: limitMessage(e) ?? (e instanceof Error && e.message.startsWith("AI") ? e.message : "설정을 적용하지 못했어요. 잠시 후 다시 시도해 주세요.") };
   }
 }

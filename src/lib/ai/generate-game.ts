@@ -6,39 +6,124 @@ import { addUsage } from "@/lib/usage";
 import { GAME_HEIGHT, type EventGame } from "@/lib/event-game";
 
 const client = new Anthropic();
+const MODEL = "claude-opus-5-5";
 
-const GameSchema = z.object({
-  css: z.string().describe("CSS for the game"),
-  html: z.string().describe("Markup placed inside <body>, no <script> or <style> tags"),
-  js: z.string().describe("Plain JavaScript that runs after the markup"),
-});
+/** A generated game plus what the template screen shows about its settings. */
+export type GeneratedGame = Required<Pick<EventGame, "css" | "html" | "js" | "config">> & { guide: string };
 
-const SYSTEM = `You build small, polished browser mini-games for Korean marketing promotion pages (roulette, hidden-object, card matching, scratch card, quiz and so on).
-The game runs inside an iframe that is 100% wide (320px to 900px) and ${GAME_HEIGHT}px tall, so fit everything in that box and make it work with touch and mouse.
-Rules:
-- Return CSS, body markup and JavaScript separately. Use only vanilla JS, CSS, inline SVG, canvas and emoji. No external files, fonts, images or network requests (they are blocked).
-- All visible text in Korean. Bright, friendly, modern look.
-- The game must be playable once to the end without errors. Keep the code compact.
-- When the game ends, show the outcome on screen with a line like "아래 신청 폼을 작성하면 응모가 완료돼요", and call window.reportResult("<short Korean outcome>") exactly once, e.g. reportResult("룰렛 결과: 10% 할인 쿠폰") or reportResult("카드 맞추기 성공 (12초)").
-- Do not let the player replay to change an outcome that has been reported.
-- Do not use alert, confirm, prompt, localStorage or cookies.`;
+const DESIGN = `You are a senior game developer and visual designer who builds premium HTML5 mini-games for Korean marketing promotion pages (roulette, card matching, hidden-object, scratch card, quiz, slot machine, ladder game, gift box pick and so on). Your games look like polished commercial products, not demos.
 
-export async function generateGame(description: string, context: string): Promise<EventGame> {
+Where the game runs:
+- A sandboxed iframe, 100% wide (320px to 900px) and ${GAME_HEIGHT}px tall. Design for that box: no page scroll, responsive from phone to desktop, works with both touch and mouse (pointer events).
+- Only vanilla JavaScript, CSS, inline SVG, canvas, Web Animations and emoji. Every network request is blocked: no external scripts, fonts, images or audio files. Sounds, if any, come from the Web Audio API and start only after a user tap.
+- No alert, confirm, prompt, localStorage, sessionStorage or cookies.
+
+Quality bar:
+- A clear start screen (title, one-line rule, big start button), the game, and a result screen. Smooth 60fps animation (requestAnimationFrame or CSS transitions with easing), satisfying feedback on every interaction (press states, highlights, a small celebration such as confetti on a win).
+- Modern look: soft gradients, rounded shapes, good spacing, readable large Korean type, consistent color palette taken from the config.
+- Robust: no console errors, no layout break at 320px, no double counting on fast repeated taps, timers cleaned up.
+- All visible text in Korean.
+
+Settings:
+- The page injects window.GAME_CONFIG (a plain JSON object) before your script runs. Read every text, prize, probability, count and color from it, so the same game can be reused for different promotions without code changes. Fall back to sensible defaults for any missing key.
+- Prize lists use weights for probability, e.g. {"label": "10% 할인 쿠폰", "weight": 30}. Pick by weight in code.
+
+Result:
+- When the game ends, show the outcome on the result screen with the line "아래 신청 폼을 작성하면 응모가 완료돼요", and call window.reportResult("<short Korean outcome>") exactly once, e.g. reportResult("룰렛 결과: 10% 할인 쿠폰") or reportResult("카드 맞추기 성공 (12초)").
+- After reporting, the player cannot play again to change the outcome.
+
+Answer in exactly this format with these five markers and nothing else (no code fences):
+===CSS===
+(css)
+===HTML===
+(markup for inside <body>, without <script> or <style> tags)
+===JS===
+(javascript)
+===CONFIG===
+(the default GAME_CONFIG as JSON)
+===GUIDE===
+(Korean, one short line per config key: what it changes)`;
+
+function parseGame(text: string): GeneratedGame {
+  const part = (name: string) => {
+    const m = text.match(new RegExp(`===${name}===\\s*([\\s\\S]*?)(?=\\n===(?:CSS|HTML|JS|CONFIG|GUIDE)===|$)`));
+    return (m?.[1] ?? "").replace(/^```[a-z]*\n?|\n?```\s*$/g, "").trim();
+  };
+  const js = part("JS");
+  const html = part("HTML");
+  if (!js || !html) throw new Error("AI 응답에서 게임 코드를 찾지 못했어요. 다시 시도해 주세요.");
+  let config: Record<string, unknown> = {};
+  try {
+    const c = JSON.parse(part("CONFIG") || "{}");
+    if (c && typeof c === "object" && !Array.isArray(c)) config = c;
+  } catch {
+    throw new Error("AI가 만든 게임 설정(JSON)을 읽지 못했어요. 다시 시도해 주세요.");
+  }
+  return { css: part("CSS"), html, js, config, guide: part("GUIDE") };
+}
+
+async function run(system: string, user: string, effort: "medium" | "high", maxTokens: number): Promise<GeneratedGame> {
+  const res = await client.messages
+    .stream({
+      model: MODEL,
+      max_tokens: maxTokens,
+      thinking: { type: "adaptive" },
+      output_config: { effort },
+      system,
+      messages: [{ role: "user", content: user }],
+    })
+    .finalMessage();
+  addUsage("text", res.usage.input_tokens + res.usage.output_tokens);
+  if (res.stop_reason === "refusal") throw new Error("AI가 이 게임 생성을 거절했어요. 설명을 바꿔서 다시 시도해 주세요.");
+  if (res.stop_reason === "max_tokens") throw new Error("AI가 만든 게임이 너무 길어서 끊겼어요. 더 단순한 게임으로 다시 시도해 주세요.");
+  const text = res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
+  return parseGame(text);
+}
+
+/** Super admin template: highest quality, may take a few minutes. With `previous`, revises that game. */
+export function generateTemplate(prompt: string, previous?: { game: GeneratedGame; feedback: string }): Promise<GeneratedGame> {
+  const user = previous
+    ? `지금 템플릿 게임을 아래 요청대로 고쳐서 전체를 다시 보내주세요. 잘 되는 부분은 유지하세요.\n\n원래 요청: ${prompt}\n\n수정 요청: ${previous.feedback}\n\n지금 코드:\n===CSS===\n${previous.game.css}\n===HTML===\n${previous.game.html}\n===JS===\n${previous.game.js}\n===CONFIG===\n${JSON.stringify(previous.game.config, null, 2)}\n===GUIDE===\n${previous.game.guide}`
+    : `여러 프로모션에서 재사용할 이벤트 게임 템플릿을 만들어 주세요.\n\n요청: ${prompt}`;
+  return run(DESIGN + "\n\nThis is a reusable template, so make the config cover every text, prize and color a marketer would want to change.", user, "high", 64000);
+}
+
+/** A one-off game a user describes in the editor. */
+export function generateFreeGame(description: string, context: string): Promise<GeneratedGame> {
+  return run(
+    DESIGN + "\n\nKeep the code compact (aim for under 600 lines in total) so it is ready quickly.",
+    `만들 게임: ${description}${context ? `\n\n프로모션 정보 (게임 문구와 경품에 참고):\n${context}` : ""}`,
+    "medium",
+    48000,
+  );
+}
+
+const ConfigSchema = z.object({ config_json: z.string().describe("The complete GAME_CONFIG as a JSON object string") });
+
+/** Fills a template's settings for one promotion (fast). */
+export async function fillTemplateConfig(
+  template: { name: string; config: Record<string, unknown>; config_guide: string },
+  request: string,
+  context: string,
+): Promise<Record<string, unknown>> {
   const res = await client.messages.parse({
-    model: "claude-opus-5-5",
-    max_tokens: 20000,
-    output_config: { effort: "low", format: zodOutputFormat(GameSchema) },
-    system: SYSTEM,
+    model: MODEL,
+    max_tokens: 8000,
+    output_config: { effort: "low", format: zodOutputFormat(ConfigSchema) },
+    system:
+      "You customize the settings of a Korean marketing mini-game template. Return the full config with the same keys and value types as the default, changing only what the request and the promotion call for. Write Korean text. Keep prize weights as numbers.",
     messages: [
       {
         role: "user",
-        content: `만들 게임: ${description}${context ? `\n\n프로모션 정보 (게임 문구와 경품에 참고):\n${context}` : ""}`,
+        content: `템플릿: ${template.name}\n\n설정 설명:\n${template.config_guide}\n\n기본 설정:\n${JSON.stringify(template.config, null, 2)}\n\n요청: ${request}${context ? `\n\n프로모션 정보:\n${context}` : ""}`,
       },
     ],
   });
   addUsage("text", res.usage.input_tokens + res.usage.output_tokens);
-  if (res.stop_reason === "refusal") throw new Error("AI가 이 게임 생성을 거절했어요. 설명을 바꿔서 다시 시도해 주세요.");
-  if (res.stop_reason === "max_tokens") throw new Error("AI가 만든 게임이 너무 길어서 끊겼어요. 더 단순한 게임으로 다시 시도해 주세요.");
-  if (!res.parsed_output) throw new Error("AI 응답을 읽지 못했어요. 다시 시도해 주세요.");
-  return res.parsed_output;
+  if (res.stop_reason === "refusal") throw new Error("AI가 이 요청을 거절했어요. 내용을 바꿔서 다시 시도해 주세요.");
+  try {
+    const c = JSON.parse(res.parsed_output?.config_json ?? "");
+    if (c && typeof c === "object" && !Array.isArray(c)) return c;
+  } catch {}
+  throw new Error("AI 응답을 읽지 못했어요. 다시 시도해 주세요.");
 }

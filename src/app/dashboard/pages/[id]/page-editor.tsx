@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition, type ReactNode } from "react";
-import { generateEventGame, savePageSections } from "../actions";
+import { applyEventTemplate, generateEventGame, listEventTemplates, savePageSections, type TemplateOption } from "../actions";
+import { gameDocument, type EventGame } from "@/lib/event-game";
 import { THEMES, THEME_CLASSES, type PageContent, type Theme } from "@/lib/types";
 import { SECTION_LABELS, emptySection, hasEvent, toSections, type Section, type SectionType } from "@/lib/page-sections";
 import { SectionView } from "@/components/promo-page";
@@ -84,38 +85,83 @@ function SectionTools({ s, update, openImage }: { s: Section; update: (p: Partia
 }
 
 function GameMaker({ s, update, close, context }: { s: Section; update: (p: Partial<Section>) => void; close: () => void; context: string }) {
+  const [tab, setTab] = useState<"template" | "free">("template");
+  const [templates, setTemplates] = useState<TemplateOption[] | null>(null);
+  const [picked, setPicked] = useState<string>(s.game?.template_id ?? "");
   const [desc, setDesc] = useState("");
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
-  const make = () =>
+  useEffect(() => {
+    listEventTemplates().then((list) => {
+      setTemplates(list);
+      if (!list.length) setTab("free");
+      setPicked((p) => p || list[0]?.id || "");
+    });
+  }, []);
+  const current = templates?.find((t) => t.id === picked);
+
+  const run = (fn: () => Promise<{ game?: EventGame; error?: string }>) =>
     start(async () => {
       setError("");
-      const r = await generateEventGame(desc, context);
+      const r = await fn();
       if (r.error || !r.game) return setError(r.error ?? "게임을 만들지 못했어요.");
       update({ game: r.game });
       close();
     });
+
   return (
-    <div className="space-y-3">
-      <p className="text-sm text-slate-600">어떤 게임을 넣을지 적어주세요. AI가 게임을 만들고, 방문자의 게임 결과는 신청 폼의 이벤트 칸에 자동으로 기록돼요.</p>
-      <textarea
-        value={desc}
-        onChange={(e) => setDesc(e.target.value)}
-        rows={4}
-        maxLength={1000}
-        className="input"
-        placeholder="예: 8칸 룰렛. 경품은 10% 할인 쿠폰, 20% 할인 쿠폰, 무료 체험권, 꽝. 한 번만 돌릴 수 있게."
-      />
-      <div className="flex flex-wrap gap-2 text-xs">
-        {["8칸 룰렛, 경품은 할인 쿠폰과 꽝", "카드 짝 맞추기 (8쌍), 걸린 시간 기록", "숨은그림찾기, 숨은 아이콘 5개 찾기", "긁는 복권, 당첨 경품 3종"].map((x) => (
-          <button key={x} type="button" onClick={() => setDesc(x)} className="rounded-full border border-slate-200 px-2.5 py-1 text-slate-600 hover:bg-slate-50">{x}</button>
+    <div className="space-y-4">
+      <div className="flex rounded-lg border border-slate-200 p-0.5 text-sm">
+        {([["template", "템플릿에서 고르기"], ["free", "AI 자유 생성"]] as const).map(([k, l]) => (
+          <button key={k} type="button" onClick={() => { setTab(k); setError(""); }} className={`flex-1 rounded-md py-1.5 font-medium ${tab === k ? "bg-slate-900 text-white" : "text-slate-600"}`}>{l}</button>
         ))}
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <button type="button" disabled={pending || !desc.trim()} onClick={make} className="btn-primary w-full">
-        {pending ? "AI가 게임을 만들고 있어요... (1~2분 걸릴 수 있어요)" : s.game ? "게임 다시 만들기" : "AI로 게임 만들기"}
-      </button>
-      {s.game && !pending && <p className="text-xs text-slate-500">다시 만들면 지금 게임이 바뀌어요. 저장해야 페이지에 반영돼요.</p>}
+
+      {tab === "template" ? (
+        templates === null ? (
+          <p className="py-8 text-center text-sm text-slate-400">템플릿을 불러오는 중...</p>
+        ) : !templates.length ? (
+          <p className="py-8 text-center text-sm text-slate-500">아직 공개된 템플릿이 없어요. AI 자유 생성을 이용해 주세요.</p>
+        ) : (
+          <>
+            <div className="grid max-h-48 gap-2 overflow-y-auto sm:grid-cols-2">
+              {templates.map((t) => (
+                <button key={t.id} type="button" onClick={() => setPicked(t.id)} className={`rounded-lg border p-3 text-left text-sm ${picked === t.id ? "border-indigo-500 bg-indigo-50" : "border-slate-200 hover:bg-slate-50"}`}>
+                  <span className="block font-medium">🎮 {t.name}</span>
+                  {t.description && <span className="mt-0.5 block text-xs text-slate-500">{t.description}</span>}
+                </button>
+              ))}
+            </div>
+            {current && (
+              <iframe key={current.id} title="미리보기" srcDoc={gameDocument(current.game)} sandbox="allow-scripts" className="w-full rounded-lg border border-slate-200" style={{ height: 360 }} />
+            )}
+            <div>
+              <label className="label" htmlFor="tpl-req">이 프로모션에 맞게 바꿀 내용 (선택)</label>
+              <textarea id="tpl-req" value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} maxLength={1000} className="input" placeholder="예: 경품은 1등 무료 이용권(5%), 2등 30% 할인(25%), 3등 10% 할인(70%). 색상은 초록 계열로." />
+              <p className="mt-1 text-xs text-slate-500">비워 두면 템플릿 기본 설정 그대로 넣어요. 적으면 AI가 경품, 확률, 문구, 색상을 맞춰요.</p>
+            </div>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <button type="button" disabled={pending || !current} onClick={() => run(() => applyEventTemplate(picked, desc, context))} className="btn-primary w-full">
+              {pending ? "AI가 설정을 맞추고 있어요..." : desc.trim() ? "AI로 맞춰서 넣기" : "이 템플릿 넣기"}
+            </button>
+          </>
+        )
+      ) : (
+        <>
+          <p className="text-sm text-slate-600">템플릿에 없는 게임을 AI가 새로 만들어요. 방문자의 게임 결과는 신청 폼의 이벤트 칸에 자동으로 기록돼요.</p>
+          <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={4} maxLength={1000} className="input" placeholder="예: 8칸 룰렛. 경품은 10% 할인 쿠폰, 20% 할인 쿠폰, 무료 체험권, 꽝. 한 번만 돌릴 수 있게." />
+          <div className="flex flex-wrap gap-2 text-xs">
+            {["8칸 룰렛, 경품은 할인 쿠폰과 꽝", "카드 짝 맞추기 (8쌍), 걸린 시간 기록", "숨은그림찾기, 숨은 아이콘 5개 찾기", "긁는 복권, 당첨 경품 3종"].map((x) => (
+              <button key={x} type="button" onClick={() => setDesc(x)} className="rounded-full border border-slate-200 px-2.5 py-1 text-slate-600 hover:bg-slate-50">{x}</button>
+            ))}
+          </div>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <button type="button" disabled={pending || !desc.trim()} onClick={() => run(() => generateEventGame(desc, context))} className="btn-primary w-full">
+            {pending ? "AI가 게임을 만들고 있어요... (2~4분 걸릴 수 있어요)" : "AI로 게임 만들기"}
+          </button>
+        </>
+      )}
+      {s.game && !pending && <p className="text-xs text-slate-500">새로 넣으면 지금 게임이 바뀌어요. 저장해야 페이지에 반영돼요.</p>}
     </div>
   );
 }

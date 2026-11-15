@@ -8,6 +8,7 @@ const items = [
   { href: "/admin/users", label: "유저" },
   { href: "/admin/sites", label: "사이트" },
   { href: "/admin/payments", label: "결제 내역" },
+  { href: "/admin/event-templates", label: "이벤트 템플릿" },
 ];
 
 export function AdminNav() {
