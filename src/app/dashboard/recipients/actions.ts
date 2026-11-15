@@ -90,6 +90,7 @@ export async function importLeads(groupName: string) {
     .from("leads")
     .select("email, name, phone, pages(title)")
     .eq("marketing_consent", true)
+    .neq("email", "")
     .limit(20000);
   if (!leads?.length) return { error: "마케팅 수신에 동의한 리드가 없어요.", added: 0 };
   const name = s(groupName, 100);

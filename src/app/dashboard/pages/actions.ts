@@ -7,7 +7,8 @@ import { limitMessage, metered } from "@/lib/usage";
 import { generatePageContent } from "@/lib/ai/generate-page";
 import { makeSlug } from "@/lib/slug";
 import { SLUG_RE } from "@/lib/site";
-import { sanitizeSections, withSections } from "@/lib/page-sections";
+import { sanitizeSections, toSections, withSections } from "@/lib/page-sections";
+import { cleanFields } from "@/lib/lead-fields";
 import { BriefSchema, THEMES, type PageContent, type Theme } from "@/lib/types";
 
 export type FormState = { error?: string; saved?: boolean };
@@ -23,10 +24,16 @@ export async function createPage(_: FormState, formData: FormData): Promise<Form
     tone: formData.get("tone") ?? "",
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "입력값을 확인해 주세요." };
+  const withForm = formData.get("lead_form") !== "off";
+  const leadFields = withForm ? cleanFields(formData.getAll("lead_fields")) : [];
+  if (withForm && !leadFields.length) return { error: "리드 폼에 넣을 필드를 하나 이상 선택해 주세요." };
+  const brief = { ...parsed.data, lead_fields: leadFields };
 
-  let content;
+  let content: PageContent;
   try {
-    content = await metered(supabase, site.id, ["text"], () => generatePageContent(parsed.data));
+    const generated = await metered(supabase, site.id, ["text"], () => generatePageContent(brief));
+    const sections = toSections(generated).flatMap((s) => (s.type !== "form" ? [s] : withForm ? [{ ...s, fields: leadFields }] : []));
+    content = withSections(generated, sections);
   } catch (e) {
     console.error("generatePageContent failed", e);
     return { error: limitMessage(e) ?? (e instanceof Error && e.message.startsWith("AI") ? e.message : "페이지 생성 중 오류가 발생했어요. 잠시 후 다시 시도해 주세요.") };
@@ -38,7 +45,7 @@ export async function createPage(_: FormState, formData: FormData): Promise<Form
       site_id: site.id, user_id: user.id,
       title: parsed.data.product,
       slug: makeSlug(),
-      brief: parsed.data,
+      brief,
       content,
     })
     .select("id")

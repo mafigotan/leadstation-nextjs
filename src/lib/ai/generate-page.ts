@@ -12,11 +12,12 @@ Keep the headline short and punchy. Benefits should be specific to this product,
 
 export async function generatePageContent(brief: Brief): Promise<PageContent> {
   const prompt = [
-    `상품/서비스: ${brief.product}`,
-    `설명: ${brief.description}`,
+    `프로모션 제목: ${brief.product}`,
+    `상품 및 서비스 설명: ${brief.description}`,
     brief.audience && `타깃 고객: ${brief.audience}`,
-    brief.offer && `프로모션/혜택: ${brief.offer}`,
+    brief.offer && `추가 지시 사항 (페이지에 반영할 것): ${brief.offer}`,
     `톤: ${brief.tone || "신뢰감 있고 친근한"}`,
+    brief.lead_fields && !brief.lead_fields.length && "이 페이지에는 신청 폼이 없어요. 신청을 유도하는 문구 대신 상품을 알리는 문구로 작성하세요.",
   ]
     .filter(Boolean)
     .join("\n");

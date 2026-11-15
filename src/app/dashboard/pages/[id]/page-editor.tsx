@@ -6,6 +6,8 @@ import { THEMES, THEME_CLASSES, type PageContent, type Theme } from "@/lib/types
 import { SECTION_LABELS, emptySection, toSections, type Section, type SectionType } from "@/lib/page-sections";
 import { SectionView } from "@/components/promo-page";
 import { ImageMenu } from "@/components/image-field";
+import { LEAD_FIELDS, formFields, type LeadField } from "@/lib/lead-fields";
+import { LeadFormFields } from "@/app/p/[slug]/lead-form";
 import { ToolBtn, ToolInput, VisualEditor, type PaletteItem } from "@/components/visual-editor";
 
 const THEME_LABELS: Record<string, string> = { indigo: "인디고", emerald: "에메랄드", rose: "로즈", amber: "앰버", slate: "슬레이트" };
@@ -23,16 +25,11 @@ const PALETTE: PaletteItem[] = [
   { type: "divider", label: SECTION_LABELS.divider, icon: "—" },
 ];
 
-function MockForm({ label, theme }: { label: string; theme: Theme }) {
+function MockForm({ label, theme, fields }: { label: string; theme: Theme; fields?: LeadField[] }) {
   const t = THEME_CLASSES[theme] ?? THEME_CLASSES.indigo;
   return (
-    <div className="space-y-4 rounded-xl border border-slate-200 p-6 shadow-sm">
-      {["이름 *", "이메일 *", "연락처", "문의 내용"].map((l) => (
-        <div key={l}>
-          <span className="label">{l}</span>
-          <div className="h-9 rounded-lg border border-slate-300 bg-slate-50" />
-        </div>
-      ))}
+    <div className="pointer-events-none space-y-4 rounded-xl border border-slate-200 p-6 shadow-sm">
+      <LeadFormFields fields={fields} disabled />
       <div className={`rounded-lg py-2.5 text-center text-sm font-semibold text-white ${t.bg}`}>{label || "신청하기"}</div>
       <p className="text-center text-xs text-slate-400">편집 화면에서는 입력할 수 없어요.</p>
     </div>
@@ -61,8 +58,24 @@ function SectionTools({ s, update, openImage }: { s: Section; update: (p: Partia
       );
     case "button":
       return <ToolInput value={s.url} onChange={(url) => update({ url: url.trim() })} placeholder="링크 (비우면 신청 폼)" width={200} />;
-    case "form":
-      return <ToolInput value={s.label} onChange={(label) => update({ label })} placeholder="신청 버튼 문구" width={140} />;
+    case "form": {
+      const current = formFields(s.fields).fields;
+      const toggle = (k: LeadField) => {
+        const next = current.includes(k) ? current.filter((f) => f !== k) : [...current, k];
+        if (next.length) update({ fields: LEAD_FIELDS.map((f) => f.key).filter((f) => next.includes(f)) });
+      };
+      return (
+        <>
+          <ToolInput value={s.label} onChange={(label) => update({ label })} placeholder="신청 버튼 문구" width={140} />
+          <span className="ml-1 text-xs text-slate-400">필드</span>
+          {LEAD_FIELDS.map((f) => (
+            <ToolBtn key={f.key} label={`${f.label} 필드 ${current.includes(f.key) ? "빼기" : "넣기"}`} active={current.includes(f.key)} onClick={() => toggle(f.key)}>
+              {f.label}
+            </ToolBtn>
+          ))}
+        </>
+      );
+    }
   }
   return null;
 }
@@ -210,7 +223,7 @@ export function PageEditor({
         settingsLabel="공개·설정"
         canvasClassName="card bg-white pb-6"
         renderBlock={(s, _i, { onImage, ed }) => (
-          <SectionView s={s} theme={t} ed={ed} onImage={onImage} form={<MockForm label={s.label || formLabel} theme={theme} />} />
+          <SectionView s={s} theme={t} ed={ed} onImage={onImage} form={<MockForm label={s.label || formLabel} theme={theme} fields={s.fields} />} />
         )}
         renderTools={(s, update, openImage) => <SectionTools s={s} update={update} openImage={openImage} />}
         renderImage={(s, key, update) => <SectionImage s={s} k={key} update={update} userId={userId} />}

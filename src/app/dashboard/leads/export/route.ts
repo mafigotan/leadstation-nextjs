@@ -23,12 +23,16 @@ export async function GET(request: NextRequest) {
     limit: 10000,
   });
 
-  const header = ["신청일", "이름", "이메일", "연락처", "문의 내용", "마케팅 동의", "페이지"];
+  const header = ["신청일", "이름", "이메일", "연락처", "주소", "성별", "나이", "국적", "기타(문의 내용)", "마케팅 동의", "프로모션"];
   const rows = leads.map((l) => [
     new Date(l.created_at).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }),
     l.name,
     l.email,
     l.phone,
+    l.address,
+    l.gender,
+    l.age,
+    l.nationality,
     l.message,
     l.marketing_consent ? "동의" : "미동의",
     l.pages?.title,

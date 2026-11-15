@@ -43,7 +43,7 @@ export default async function UserPromoPage({ params }: Params) {
       )}
       <PromoPage
         content={page.content}
-        form={(s) => <LeadForm pageId={page.id} ctaLabel={s?.label || page.content.cta_label} theme={page.content.theme} />}
+        form={(s) => <LeadForm pageId={page.id} sectionId={s?.id} fields={s?.fields} ctaLabel={s?.label || page.content.cta_label} theme={page.content.theme} />}
       />
       <footer className="border-t border-slate-100 py-6 text-center text-xs text-slate-400">Powered by LEADstation</footer>
     </>

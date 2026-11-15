@@ -40,6 +40,7 @@ export default async function EditPage({
         ← 목록으로
       </Link>
       <div className="mt-2 flex flex-wrap items-center gap-2">
+        {page.promo_no && <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-600">{page.promo_no}</span>}
         <h1 className="text-2xl font-bold">{page.title}</h1>
         <span
           className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${published ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}

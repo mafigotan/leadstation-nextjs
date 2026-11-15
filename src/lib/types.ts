@@ -22,14 +22,18 @@ export type PageContent = z.infer<typeof PageContentSchema> & {
   hero_image?: string;
   /** Element list edited in the visual editor (see lib/page-sections). */
   sections?: import("./page-sections").Section[];
+  /** false when the page was made (or saved) without a lead form. */
+  lead_form?: boolean;
 };
 
 export const BriefSchema = z.object({
-  product: z.string().trim().min(1, "상품 또는 서비스명을 입력해 주세요.").max(200),
-  description: z.string().trim().min(1, "설명을 입력해 주세요.").max(3000),
+  product: z.string().trim().min(1, "프로모션 제목을 입력해 주세요.").max(200),
+  description: z.string().trim().min(1, "상품 및 서비스 설명을 입력해 주세요.").max(3000),
   audience: z.string().trim().max(500).default(""),
   offer: z.string().trim().max(1000).default(""),
   tone: z.string().trim().max(100).default("신뢰감 있고 친근한"),
+  /** Lead form fields chosen at creation; empty means no lead form. */
+  lead_fields: z.array(z.string()).max(10).optional(),
 });
 
 export type Brief = z.infer<typeof BriefSchema>;
@@ -38,6 +42,8 @@ export type PageRow = {
   id: string;
   user_id: string;
   site_id: string;
+  /** Promotion ID like 202601, assigned by the DB. */
+  promo_no: string | null;
   title: string;
   slug: string;
   status: "draft" | "published";
@@ -54,6 +60,10 @@ export type LeadRow = {
   email: string;
   phone: string | null;
   message: string | null;
+  address: string | null;
+  gender: string | null;
+  age: number | null;
+  nationality: string | null;
   marketing_consent: boolean;
   created_at: string;
 };

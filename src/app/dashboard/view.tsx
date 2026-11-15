@@ -99,7 +99,7 @@ export function DashboardView({ name, site, isAdmin, notifications, open, pages,
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/dashboard/pages/new" className="btn-secondary">프로모션 페이지 만들기</Link>
+          <Link href="/dashboard/pages/new" className="btn-secondary">프로모션 만들기</Link>
           <Link href="/dashboard/writer/new" className="btn-secondary">글 쓰기</Link>
           <Link href="/dashboard/newsletters" className="btn-secondary">뉴스레터</Link>
         </div>
@@ -144,7 +144,7 @@ export function DashboardView({ name, site, isAdmin, notifications, open, pages,
       <UsagePanel usage={usage} pending={limitRequested} />
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card title="최근 프로모션 페이지" href="/dashboard/pages">
+        <Card title="최근 프로모션" href="/dashboard/pages">
           {pages.length ? (
             <ul className="space-y-2">
               {pages.map((p) => (
@@ -202,16 +202,16 @@ export function DashboardView({ name, site, isAdmin, notifications, open, pages,
                     <tr>
                       <th className="py-2 pr-3 font-medium">이름</th>
                       <th className="py-2 pr-3 font-medium">연락처</th>
-                      <th className="py-2 pr-3 font-medium">페이지</th>
+                      <th className="py-2 pr-3 font-medium">프로모션</th>
                       <th className="py-2 font-medium">받은 시각</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {leads.map((l) => (
                       <tr key={l.id}>
-                        <td className="py-2 pr-3 font-medium">{l.name}</td>
+                        <td className="py-2 pr-3 font-medium">{l.name || "-"}</td>
                         <td className="py-2 pr-3 text-slate-600">
-                          {l.email}
+                          {l.email || (l.phone ? "" : "-")}
                           {l.phone && <span className="block text-xs text-slate-400">{l.phone}</span>}
                         </td>
                         <td className="max-w-[12rem] truncate py-2 pr-3 text-slate-600">{l.pages?.title ?? "-"}</td>

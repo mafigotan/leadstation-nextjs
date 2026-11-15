@@ -1,5 +1,6 @@
 // Promotion page elements. Older pages store fixed fields only; toSections() builds elements from them.
 import type { PageContent } from "./types";
+import { cleanFields, type LeadField } from "./lead-fields";
 
 export const SECTION_TYPES = ["hero", "image", "benefits", "cards", "text", "quote", "button", "form", "divider"] as const;
 export type SectionType = (typeof SECTION_TYPES)[number];
@@ -27,6 +28,8 @@ export type Section = {
   label: string;
   url: string;
   items: SectionItem[];
+  /** Lead form fields (form sections only). Empty means the legacy set. */
+  fields?: LeadField[];
 };
 
 export const newSectionId = () => "s" + Math.random().toString(36).slice(2, 10);
@@ -75,6 +78,7 @@ export function sanitizeSections(input: unknown): Section[] {
         image_url: url(r.image_url),
         label: str(r.label, 60),
         url: url(r.url),
+        ...(r.type === "form" && cleanFields(r.fields).length ? { fields: cleanFields(r.fields) } : {}),
         items: Array.isArray(r.items)
           ? r.items.slice(0, 12).map((it) => {
               const o = (it ?? {}) as Record<string, unknown>;
@@ -101,6 +105,7 @@ export function withSections(c: PageContent, sections: Section[]): PageContent {
     form_title: form?.heading ?? c.form_title,
     form_description: form?.text ?? c.form_description,
     benefits: benefits ? benefits.items.map((b) => ({ title: b.title, description: b.description })) : c.benefits,
+    lead_form: !!form,
     sections,
   };
 }

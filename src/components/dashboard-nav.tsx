@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 const items = [
   { href: "/dashboard", label: "대시보드" },
-  { href: "/dashboard/pages", label: "프로모션 페이지" },
+  { href: "/dashboard/pages", label: "프로모션" },
   { href: "/dashboard/leads", label: "리드 관리" },
   { href: "/dashboard/writer", label: "AI 글쓰기" },
   { href: "/dashboard/newsletters", label: "AI 뉴스레터" },

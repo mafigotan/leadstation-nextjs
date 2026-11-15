@@ -176,7 +176,7 @@ export function PromoPage({ content, form }: { content: PageContent; form: (s: S
       {sections.map((s) => (
         <SectionView key={s.id} s={s} theme={theme} form={form(s)} />
       ))}
-      {!hasForm && <SectionView s={{ id: "f", type: "form", badge: "", heading: content.form_title, text: content.form_description, image_url: "", label: content.cta_label, url: "", items: [] }} theme={theme} form={form(null)} />}
+      {!hasForm && content.lead_form !== false && <SectionView s={{ id: "f", type: "form", badge: "", heading: content.form_title, text: content.form_description, image_url: "", label: content.cta_label, url: "", items: [] }} theme={theme} form={form(null)} />}
     </div>
   );
 }
