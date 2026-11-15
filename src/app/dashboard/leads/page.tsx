@@ -73,7 +73,10 @@ export default async function LeadsPage({
                   </td>
                   <td className="px-4 py-3">{l.email || "-"}</td>
                   <td className="px-4 py-3">{l.phone ?? "-"}</td>
-                  <td className="px-4 py-3 text-slate-600">{leadExtra(l) || "-"}</td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {leadExtra(l) || (l.event ? "" : "-")}
+                    {l.event && <span className="mt-1 block w-fit rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-800">🎮 {l.event}</span>}
+                  </td>
                   <td className="px-4 py-3 text-slate-600">{l.pages?.title ?? "-"}</td>
                   <td className="px-4 py-3">{l.marketing_consent ? "동의" : "-"}</td>
                   <td className="px-4 py-3 text-right">

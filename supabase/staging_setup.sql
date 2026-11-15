@@ -1,4 +1,4 @@
--- LEADstation staging DB: 0001~0010 migrations in one file. Run once on the new staging Supabase project.
+-- LEADstation staging DB: 0001~0011 migrations in one file. Run once on the new staging Supabase project.
 
 -- ===== 0001_lead_collector.sql =====
 -- Lead Collector: promotion pages and the leads they collect.
@@ -1295,5 +1295,15 @@ alter table public.leads add column if not exists address text check (char_lengt
 alter table public.leads add column if not exists gender text check (char_length(gender) <= 20);
 alter table public.leads add column if not exists age smallint check (age between 0 and 150);
 alter table public.leads add column if not exists nationality text check (char_length(nationality) <= 100);
+
+commit;
+
+
+-- ===== 0011_lead_event.sql =====
+-- Game result recorded by a promotion page's event element.
+
+begin;
+
+alter table public.leads add column if not exists event text check (char_length(event) <= 200);
 
 commit;

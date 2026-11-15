@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition, type ReactNode } from "react";
-import { savePageSections } from "../actions";
+import { generateEventGame, savePageSections } from "../actions";
 import { THEMES, THEME_CLASSES, type PageContent, type Theme } from "@/lib/types";
-import { SECTION_LABELS, emptySection, toSections, type Section, type SectionType } from "@/lib/page-sections";
+import { SECTION_LABELS, emptySection, hasEvent, toSections, type Section, type SectionType } from "@/lib/page-sections";
 import { SectionView } from "@/components/promo-page";
 import { ImageMenu } from "@/components/image-field";
 import { LEAD_FIELDS, formFields, type LeadField } from "@/lib/lead-fields";
-import { LeadFormFields } from "@/app/p/[slug]/lead-form";
+import { EventField, LeadFormFields } from "@/app/p/[slug]/lead-form";
 import { ToolBtn, ToolInput, VisualEditor, type PaletteItem } from "@/components/visual-editor";
 
 const THEME_LABELS: Record<string, string> = { indigo: "인디고", emerald: "에메랄드", rose: "로즈", amber: "앰버", slate: "슬레이트" };
@@ -21,15 +21,17 @@ const PALETTE: PaletteItem[] = [
   { type: "text", label: SECTION_LABELS.text, icon: "¶", hint: "제목 + 안내 문단" },
   { type: "quote", label: SECTION_LABELS.quote, icon: "❝" },
   { type: "button", label: SECTION_LABELS.button, icon: "▭", hint: "신청 폼이나 링크로 이동" },
-  { type: "form", label: SECTION_LABELS.form, icon: "✉", hint: "리드 수집 폼" },
+  { type: "event", label: SECTION_LABELS.event, icon: "🎮", hint: "AI가 만드는 룰렛, 카드 맞추기 등" },
+  { type: "form", label: SECTION_LABELS.form, icon: "✉", hint: "리드 수집 폼 (페이지당 1개)" },
   { type: "divider", label: SECTION_LABELS.divider, icon: "—" },
 ];
 
-function MockForm({ label, theme, fields }: { label: string; theme: Theme; fields?: LeadField[] }) {
+function MockForm({ label, theme, fields, event }: { label: string; theme: Theme; fields?: LeadField[]; event: boolean }) {
   const t = THEME_CLASSES[theme] ?? THEME_CLASSES.indigo;
   return (
     <div className="pointer-events-none space-y-4 rounded-xl border border-slate-200 p-6 shadow-sm">
       <LeadFormFields fields={fields} disabled />
+      {event && <EventField value="" />}
       <div className={`rounded-lg py-2.5 text-center text-sm font-semibold text-white ${t.bg}`}>{label || "신청하기"}</div>
       <p className="text-center text-xs text-slate-400">편집 화면에서는 입력할 수 없어요.</p>
     </div>
@@ -42,7 +44,7 @@ function SectionTools({ s, update, openImage }: { s: Section; update: (p: Partia
     case "hero":
       return (
         <>
-          <ToolInput value={s.url} onChange={(url) => update({ url: url.trim() })} placeholder="버튼 링크 (비우면 신청 폼)" width={180} />
+          <ToolInput value={s.url} onChange={(url) => update({ url: url.trim() })} placeholder="버튼 링크 (비우면 리드 폼)" width={180} />
           <ToolBtn label="이미지 변경" onClick={() => openImage("main")}>🖼 이미지</ToolBtn>
         </>
       );
@@ -57,7 +59,9 @@ function SectionTools({ s, update, openImage }: { s: Section; update: (p: Partia
         </>
       );
     case "button":
-      return <ToolInput value={s.url} onChange={(url) => update({ url: url.trim() })} placeholder="링크 (비우면 신청 폼)" width={200} />;
+      return <ToolInput value={s.url} onChange={(url) => update({ url: url.trim() })} placeholder="링크 (비우면 리드 폼)" width={200} />;
+    case "event":
+      return <ToolBtn label="AI로 게임 만들기" onClick={() => openImage("game")}>🎮 {s.game ? "게임 다시 만들기" : "AI로 게임 만들기"}</ToolBtn>;
     case "form": {
       const current = formFields(s.fields).fields;
       const toggle = (k: LeadField) => {
@@ -66,7 +70,6 @@ function SectionTools({ s, update, openImage }: { s: Section; update: (p: Partia
       };
       return (
         <>
-          <ToolInput value={s.label} onChange={(label) => update({ label })} placeholder="신청 버튼 문구" width={140} />
           <span className="ml-1 text-xs text-slate-400">필드</span>
           {LEAD_FIELDS.map((f) => (
             <ToolBtn key={f.key} label={`${f.label} 필드 ${current.includes(f.key) ? "빼기" : "넣기"}`} active={current.includes(f.key)} onClick={() => toggle(f.key)}>
@@ -78,6 +81,43 @@ function SectionTools({ s, update, openImage }: { s: Section; update: (p: Partia
     }
   }
   return null;
+}
+
+function GameMaker({ s, update, close, context }: { s: Section; update: (p: Partial<Section>) => void; close: () => void; context: string }) {
+  const [desc, setDesc] = useState("");
+  const [error, setError] = useState("");
+  const [pending, start] = useTransition();
+  const make = () =>
+    start(async () => {
+      setError("");
+      const r = await generateEventGame(desc, context);
+      if (r.error || !r.game) return setError(r.error ?? "게임을 만들지 못했어요.");
+      update({ game: r.game });
+      close();
+    });
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-slate-600">어떤 게임을 넣을지 적어주세요. AI가 게임을 만들고, 방문자의 게임 결과는 리드 폼의 이벤트 칸에 자동으로 기록돼요.</p>
+      <textarea
+        value={desc}
+        onChange={(e) => setDesc(e.target.value)}
+        rows={4}
+        maxLength={1000}
+        className="input"
+        placeholder="예: 8칸 룰렛. 경품은 10% 할인 쿠폰, 20% 할인 쿠폰, 무료 체험권, 꽝. 한 번만 돌릴 수 있게."
+      />
+      <div className="flex flex-wrap gap-2 text-xs">
+        {["8칸 룰렛, 경품은 할인 쿠폰과 꽝", "카드 짝 맞추기 (8쌍), 걸린 시간 기록", "숨은그림찾기, 숨은 아이콘 5개 찾기", "긁는 복권, 당첨 경품 3종"].map((x) => (
+          <button key={x} type="button" onClick={() => setDesc(x)} className="rounded-full border border-slate-200 px-2.5 py-1 text-slate-600 hover:bg-slate-50">{x}</button>
+        ))}
+      </div>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <button type="button" disabled={pending || !desc.trim()} onClick={make} className="btn-primary w-full">
+        {pending ? "AI가 게임을 만들고 있어요... (1~2분 걸릴 수 있어요)" : s.game ? "게임 다시 만들기" : "AI로 게임 만들기"}
+      </button>
+      {s.game && !pending && <p className="text-xs text-slate-500">다시 만들면 지금 게임이 바뀌어요. 저장해야 페이지에 반영돼요.</p>}
+    </div>
+  );
 }
 
 function SectionImage({ s, k, update, userId }: { s: Section; k: string; update: (p: Partial<Section>) => void; userId: string }) {
@@ -222,11 +262,16 @@ export function PageEditor({
         settings={settings}
         settingsLabel="공개·설정"
         canvasClassName="card bg-white pb-6"
+        canDuplicate={(s) => s.type !== "form"}
+        canAdd={(type) => (type === "form" && sections.some((s) => s.type === "form") ? "리드 폼은 프로모션에 하나만 넣을 수 있어요." : null)}
+        modalTitle={(key) => (key === "game" ? "AI로 게임 만들기" : "이미지")}
         renderBlock={(s, _i, { onImage, ed }) => (
-          <SectionView s={s} theme={t} ed={ed} onImage={onImage} form={<MockForm label={s.label || formLabel} theme={theme} fields={s.fields} />} />
+          <SectionView s={s} theme={t} ed={ed} onImage={onImage} form={<MockForm label={s.label || formLabel} theme={theme} fields={s.fields} event={hasEvent(sections)} />} />
         )}
         renderTools={(s, update, openImage) => <SectionTools s={s} update={update} openImage={openImage} />}
-        renderImage={(s, key, update) => <SectionImage s={s} k={key} update={update} userId={userId} />}
+        renderImage={(s, key, update, close) =>
+          key === "game" ? <GameMaker s={s} update={update} close={close} context={[title, content.subheadline].filter(Boolean).join("\n")} /> : <SectionImage s={s} k={key} update={update} userId={userId} />
+        }
       />
       <p className="mt-3 text-center text-xs text-slate-400">글자를 누르면 바로 고칠 수 있어요. 요소를 누르면 위쪽에 메뉴가, 이미지를 누르면 이미지 창이 열려요. Ctrl+S로 저장해요.</p>
     </div>

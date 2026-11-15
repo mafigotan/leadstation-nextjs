@@ -1,6 +1,7 @@
 import { createElement, type ReactNode } from "react";
 import { THEME_CLASSES, type PageContent } from "@/lib/types";
 import { toSections, type Section } from "@/lib/page-sections";
+import { GAME_HEIGHT, gameDocument } from "@/lib/event-game";
 
 type Theme = (typeof THEME_CLASSES)[keyof typeof THEME_CLASSES];
 
@@ -159,6 +160,35 @@ export function SectionView({
             {T("heading", s.heading, "h2", "text-center text-2xl font-bold", "폼 제목", true)}
             {T("text", s.text, "p", "mb-6 mt-2 text-center text-slate-600", "폼 설명 (선택)")}
             {form}
+          </div>
+        </section>
+      );
+    case "event":
+      if (!editing && !s.game) return null;
+      return (
+        <section className="px-4 py-16">
+          <div className="mx-auto max-w-3xl">
+            {T("heading", s.heading, "h2", "text-center text-2xl font-bold", "이벤트 제목", true)}
+            {T("text", s.text, "p", "mb-6 mt-2 text-center text-slate-600", "이벤트 안내 (선택)")}
+            {s.game ? (
+              <iframe
+                title={s.heading || "이벤트"}
+                srcDoc={gameDocument(s.game)}
+                sandbox="allow-scripts"
+                className="w-full rounded-2xl border border-slate-200 bg-white shadow-sm"
+                style={{ height: GAME_HEIGHT }}
+              />
+            ) : (
+              <div
+                className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500"
+                style={{ height: 240 }}
+                onClick={onImage ? (e) => { e.stopPropagation(); onImage("game"); } : undefined}
+              >
+                <span className="text-3xl">🎮</span>
+                <span>눌러서 AI로 게임 만들기</span>
+                <span className="text-xs text-slate-400">룰렛, 숨은그림찾기, 카드 맞추기 등</span>
+              </div>
+            )}
           </div>
         </section>
       );

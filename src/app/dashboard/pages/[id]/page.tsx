@@ -1,3 +1,4 @@
+export const maxDuration = 300;
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSite } from "@/lib/supabase/server";

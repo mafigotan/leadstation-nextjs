@@ -11,6 +11,7 @@ export type LeadWithPage = {
   gender: string | null;
   age: number | null;
   nationality: string | null;
+  event: string | null;
   marketing_consent: boolean;
   created_at: string;
   pages: { title: string } | null;
@@ -22,7 +23,7 @@ export async function queryLeads(
 ) {
   let query = supabase
     .from("leads")
-    .select("id, page_id, name, email, phone, message, address, gender, age, nationality, marketing_consent, created_at, pages(title)")
+    .select("id, page_id, name, email, phone, message, address, gender, age, nationality, event, marketing_consent, created_at, pages(title)")
     .order("created_at", { ascending: false })
     .limit(limit);
 

@@ -134,6 +134,9 @@ export function VisualEditor<B extends { id: string }>({
   initialTab = "blocks",
   selected,
   onSelect,
+  canDuplicate,
+  canAdd,
+  modalTitle,
 }: {
   blocks: B[];
   onChange: (blocks: B[]) => void;
@@ -156,14 +159,31 @@ export function VisualEditor<B extends { id: string }>({
   initialTab?: "blocks" | "settings";
   selected: string | null;
   onSelect: (id: string | null) => void;
+  /** false hides 복제 for the element. */
+  canDuplicate?: (b: B) => boolean;
+  /** Returns a message when an element of `type` cannot be added now. */
+  canAdd?: (type: string) => string | null;
+  /** Title of the modal opened for key `key` (default 이미지). */
+  modalTitle?: (key: string) => string;
 }) {
   const [tab, setTab] = useState<"blocks" | "settings">(initialTab);
   const [drag, setDrag] = useState<Drag>(null);
   const [over, setOver] = useState<number | null>(null);
   const [image, setImage] = useState<{ id: string; key: string } | null>(null);
+  const [notice, setNotice] = useState("");
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(""), 3000);
+    return () => clearTimeout(t);
+  }, [notice]);
 
   const insert = (index: number, d: NonNullable<Drag>) => {
     if (d.kind === "new") {
+      const blocked = canAdd?.(d.type);
+      if (blocked) {
+        setNotice(blocked);
+        return;
+      }
       const b = create(d.type);
       onChange([...blocks.slice(0, index), b, ...blocks.slice(index)]);
       onSelect(b.id);
@@ -248,6 +268,7 @@ export function VisualEditor<B extends { id: string }>({
           {tab === "blocks" || !settings ? (
             <div className="card p-3">
               <p className="mb-2 px-1 text-xs text-slate-500">끌어서 본문의 파란 선에 놓거나, 눌러서 선택한 요소 아래에 추가해요.</p>
+              {notice && <p className="mb-2 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">{notice}</p>}
               <div className="space-y-1.5">
                 {palette.map((p) => (
                   <button
@@ -314,7 +335,7 @@ export function VisualEditor<B extends { id: string }>({
                     <>
                       <ToolBtn label="위로" onClick={() => move(i, -1)}>↑</ToolBtn>
                       <ToolBtn label="아래로" onClick={() => move(i, 1)}>↓</ToolBtn>
-                      <ToolBtn
+                      {canDuplicate?.(b) !== false && <ToolBtn
                         label="복제"
                         onClick={() => {
                           const copy = { ...structuredClone(b), id: Math.random().toString(36).slice(2, 10) };
@@ -322,7 +343,7 @@ export function VisualEditor<B extends { id: string }>({
                         }}
                       >
                         ⧉ 복제
-                      </ToolBtn>
+                      </ToolBtn>}
                       <ToolBtn
                         label="삭제"
                         danger
@@ -347,7 +368,7 @@ export function VisualEditor<B extends { id: string }>({
         </div>
       </div>
       {image && imgBlock && renderImage && (
-        <Modal title="이미지" onClose={() => setImage(null)}>
+        <Modal title={modalTitle?.(image.key) ?? "이미지"} onClose={() => setImage(null)}>
           {renderImage(imgBlock, image.key, (p) => update(imgBlock.id, p), () => setImage(null))}
         </Modal>
       )}

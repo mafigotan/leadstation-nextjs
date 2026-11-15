@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { GENDERS, LEAD_FIELD_LABEL, formFields, type LeadField } from "@/lib/lead-fields";
-import { toSections } from "@/lib/page-sections";
+import { hasEvent, toSections } from "@/lib/page-sections";
 import type { PageContent } from "@/lib/types";
 
 const FIELD_SCHEMA: Record<LeadField, z.ZodType<unknown>> = {
@@ -28,7 +28,8 @@ export async function submitLead(pageId: string, sectionId: string, _: LeadState
   // The page's own form decides which fields are accepted and required.
   const { data: page } = await supabase.from("pages").select("content").eq("id", pageId).maybeSingle<{ content: PageContent }>();
   if (!page) return { error: "공개된 페이지에서만 신청할 수 있어요." };
-  const forms = toSections(page.content).filter((s) => s.type === "form");
+  const sections = toSections(page.content);
+  const forms = sections.filter((s) => s.type === "form");
   const section = forms.find((s) => s.id === sectionId) ?? forms[0];
   const { fields, required } = formFields(section?.fields);
 
@@ -41,6 +42,10 @@ export async function submitLead(pageId: string, sectionId: string, _: LeadState
     if (raw) row[f] = parsed.data;
   }
   if (!fields.some((f) => row[f] !== undefined)) return { error: "신청 정보를 입력해 주세요." };
+  if (hasEvent(sections)) {
+    const ev = String(formData.get("event") ?? "").trim().slice(0, 200);
+    if (ev) row.event = ev;
+  }
 
   const { error } = await supabase.from("leads").insert(row);
   if (error) {

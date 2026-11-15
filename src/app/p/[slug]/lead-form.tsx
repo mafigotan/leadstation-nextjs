@@ -1,9 +1,23 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { submitLead, type LeadState } from "./actions";
 import { THEME_CLASSES, type Theme } from "@/lib/types";
+import { EVENT_MESSAGE } from "@/lib/event-game";
 import { GENDERS, LEAD_FIELD_LABEL, formFields, type LeadField } from "@/lib/lead-fields";
+
+/** Read-only field that shows the game result reported by the event element. */
+export function EventField({ value }: { value: string }) {
+  return (
+    <div>
+      <span className="label">이벤트</span>
+      <input type="hidden" name="event" value={value} />
+      <div className={`rounded-lg border px-3 py-2 text-sm ${value ? "border-slate-300 bg-white font-medium" : "border-dashed border-slate-300 bg-slate-50 text-slate-400"}`}>
+        {value || "위 이벤트에 참여하면 결과가 자동으로 입력돼요."}
+      </div>
+    </div>
+  );
+}
 
 export function LeadFormFields({ fields: chosen, disabled }: { fields?: LeadField[]; disabled?: boolean }) {
   const { fields, required } = formFields(chosen);
@@ -37,7 +51,18 @@ export function LeadFormFields({ fields: chosen, disabled }: { fields?: LeadFiel
   );
 }
 
-export function LeadForm({ pageId, sectionId, fields, ctaLabel, theme }: { pageId: string; sectionId?: string; fields?: LeadField[]; ctaLabel: string; theme: Theme }) {
+export function LeadForm({ pageId, sectionId, fields, ctaLabel, theme, event }: { pageId: string; sectionId?: string; fields?: LeadField[]; ctaLabel: string; theme: Theme; event?: boolean }) {
+  const [eventResult, setEventResult] = useState("");
+  useEffect(() => {
+    if (!event) return;
+    const onMessage = (e: MessageEvent) => {
+      const d = e.data as { type?: string; result?: unknown } | null;
+      // Games run in sandboxed iframes, whose origin is "null".
+      if (e.origin === "null" && d?.type === EVENT_MESSAGE && typeof d.result === "string") setEventResult((cur) => cur || d.result!.toString().slice(0, 200));
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [event]);
   const [state, action, pending] = useActionState<LeadState, FormData>(submitLead.bind(null, pageId, sectionId ?? ""), {});
   const t = THEME_CLASSES[theme] ?? THEME_CLASSES.indigo;
   const personal = formFields(fields).fields.filter((f) => f !== "message").map((f) => LEAD_FIELD_LABEL[f]);
@@ -55,6 +80,7 @@ export function LeadForm({ pageId, sectionId, fields, ctaLabel, theme }: { pageI
     <form action={action} className="space-y-4 rounded-xl border border-slate-200 p-6 shadow-sm">
       <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden />
       <LeadFormFields fields={fields} />
+      {event && <EventField value={eventResult} />}
       <label className="flex items-start gap-2 text-sm text-slate-600">
         <input type="checkbox" name="privacy" required className="mt-1" />
         <span>[필수] 개인정보({personal.join(", ") || "입력한 정보"}) 수집 및 이용에 동의합니다.</span>

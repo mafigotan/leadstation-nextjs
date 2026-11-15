@@ -1,8 +1,9 @@
 // Promotion page elements. Older pages store fixed fields only; toSections() builds elements from them.
 import type { PageContent } from "./types";
 import { cleanFields, type LeadField } from "./lead-fields";
+import { sanitizeGame, type EventGame } from "./event-game";
 
-export const SECTION_TYPES = ["hero", "image", "benefits", "cards", "text", "quote", "button", "form", "divider"] as const;
+export const SECTION_TYPES = ["hero", "image", "benefits", "cards", "text", "quote", "button", "form", "event", "divider"] as const;
 export type SectionType = (typeof SECTION_TYPES)[number];
 
 export const SECTION_LABELS: Record<SectionType, string> = {
@@ -13,7 +14,8 @@ export const SECTION_LABELS: Record<SectionType, string> = {
   text: "문단",
   quote: "강조 문구",
   button: "버튼",
-  form: "신청 폼",
+  form: "리드 폼",
+  event: "이벤트",
   divider: "구분선",
 };
 
@@ -30,6 +32,8 @@ export type Section = {
   items: SectionItem[];
   /** Lead form fields (form sections only). Empty means the legacy set. */
   fields?: LeadField[];
+  /** AI-made game (event sections only). */
+  game?: EventGame;
 };
 
 export const newSectionId = () => "s" + Math.random().toString(36).slice(2, 10);
@@ -39,6 +43,10 @@ export function emptySection(type: SectionType): Section {
   if (type === "benefits") s.items = [1, 2, 3].map(() => ({ title: "", description: "", image_url: "" }));
   if (type === "cards") s.items = [1, 2, 3].map(() => ({ title: "", description: "", image_url: "" }));
   if (type === "button") s.label = "자세히 보기";
+  if (type === "event") {
+    s.heading = "이벤트에 참여하세요";
+    s.text = "게임에 참여하고 결과를 확인한 뒤 아래 신청 폼을 작성해 주세요.";
+  }
   if (type === "form") {
     s.heading = "지금 신청하세요";
     s.label = "신청하기";
@@ -65,9 +73,12 @@ const url = (v: unknown) => {
 
 export function sanitizeSections(input: unknown): Section[] {
   if (!Array.isArray(input)) return [];
+  let forms = 0;
   return input.slice(0, 60).flatMap((raw): Section[] => {
     const r = (raw ?? {}) as Record<string, unknown>;
     if (!SECTION_TYPES.includes(r.type as SectionType)) return [];
+    // A promotion has one lead form.
+    if (r.type === "form" && forms++ > 0) return [];
     return [
       {
         id: str(r.id, 40) || newSectionId(),
@@ -79,6 +90,7 @@ export function sanitizeSections(input: unknown): Section[] {
         label: str(r.label, 60),
         url: url(r.url),
         ...(r.type === "form" && cleanFields(r.fields).length ? { fields: cleanFields(r.fields) } : {}),
+        ...(r.type === "event" && sanitizeGame(r.game) ? { game: sanitizeGame(r.game) } : {}),
         items: Array.isArray(r.items)
           ? r.items.slice(0, 12).map((it) => {
               const o = (it ?? {}) as Record<string, unknown>;
@@ -109,3 +121,6 @@ export function withSections(c: PageContent, sections: Section[]): PageContent {
     sections,
   };
 }
+
+/** Pages with an event element record the game result in the lead form. */
+export const hasEvent = (sections: Section[]) => sections.some((s) => s.type === "event");

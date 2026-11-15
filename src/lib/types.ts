@@ -64,6 +64,7 @@ export type LeadRow = {
   gender: string | null;
   age: number | null;
   nationality: string | null;
+  event: string | null;
   marketing_consent: boolean;
   created_at: string;
 };
