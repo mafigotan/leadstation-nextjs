@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const items = [
-  { href: "/admin", label: "요약" },
+  { href: "/admin", label: "대시보드" },
   { href: "/admin/users", label: "유저" },
   { href: "/admin/sites", label: "사이트" },
   { href: "/admin/payments", label: "결제 내역" },
