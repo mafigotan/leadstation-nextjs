@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { EVENT_MESSAGE, GAME_HEIGHT, gameDocument, type EventGame } from "@/lib/event-game";
-import { createTemplate, deleteTemplate, reviseTemplate, setTemplatePublic, updateTemplate, type TemplateState } from "./actions";
+import { createTemplate, deleteTemplate, pollTemplate, reviseTemplate, setTemplatePublic, updateTemplate, type TemplateState } from "./actions";
 
 const Msg = ({ s }: { s: TemplateState }) =>
   s.error ? <p className="text-sm text-red-600">{s.error}</p> : s.message ? <p className="text-sm text-emerald-700">{s.message}</p> : null;
@@ -42,7 +42,7 @@ export function NewTemplateForm() {
           className="input"
           placeholder="예: 6~10칸으로 바꿀 수 있는 룰렛. 돌리기 버튼을 누르면 감속하며 멈추고, 당첨 칸이 빛나며 컨페티가 터짐. 꽝도 있음. 각 칸의 문구, 색, 당첨 확률을 설정에서 바꿀 수 있게."
         />
-        <p className="mt-1 text-xs text-slate-500">AI를 최고 품질로 설정해서 만들어요. 보통 2~5분 걸리고, 그동안 다른 일을 하셔도 돼요.</p>
+        <p className="mt-1 text-xs text-slate-500">AI를 최고 품질로 설정해서 만들어요. 보통 5~15분 걸리고, 그동안 다른 일을 하셔도 돼요.</p>
       </div>
       <Msg s={state} />
       <div className="flex gap-2">
@@ -53,14 +53,24 @@ export function NewTemplateForm() {
   );
 }
 
-/** Reloads the page every few seconds while AI works. */
-export function AutoRefresh({ active }: { active: boolean }) {
+/** While AI works, checks the job every 10 seconds and reloads the page when it is done. */
+export function JobWatcher({ id }: { id: string }) {
   const router = useRouter();
   useEffect(() => {
-    if (!active) return;
-    const t = setInterval(() => router.refresh(), 5000);
-    return () => clearInterval(t);
-  }, [active, router]);
+    let stop = false;
+    const tick = async () => {
+      if (stop) return;
+      const r = await pollTemplate(id).catch(() => ({ done: false }));
+      if (stop) return;
+      if (r.done) router.refresh();
+      else setTimeout(tick, 10000);
+    };
+    const t = setTimeout(tick, 5000);
+    return () => {
+      stop = true;
+      clearTimeout(t);
+    };
+  }, [id, router]);
   return null;
 }
 

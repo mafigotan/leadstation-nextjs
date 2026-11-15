@@ -2,10 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSuperAdmin } from "@/lib/supabase/server";
 import { fmtDateTime } from "../../ui";
-import { TemplateStatus, isRevising, isStale } from "../status";
-import { AutoRefresh, DeleteButton, EditForm, GamePreview, PublicToggle, ReviseForm } from "../forms";
+import { TemplateStatus, isRevising } from "../status";
+import { JobWatcher, DeleteButton, EditForm, GamePreview, PublicToggle, ReviseForm } from "../forms";
 
-export const maxDuration = 300;
 export const metadata = { title: "이벤트 템플릿 | 슈퍼 관리자" };
 
 export default async function EventTemplate({ params }: { params: Promise<{ id: string }> }) {
@@ -13,14 +12,14 @@ export default async function EventTemplate({ params }: { params: Promise<{ id: 
   const { supabase } = await requireSuperAdmin();
   const { data: t } = await supabase.from("event_templates").select("*").eq("id", id).maybeSingle();
   if (!t) notFound();
-  const stale = isStale(t);
-  const generating = t.status === "generating" && !stale;
+  const generating = t.status === "generating" && !!t.job_batch_id;
+  const stopped = t.status === "generating" && !t.job_batch_id;
   const revising = isRevising(t);
   const ready = t.status === "ready";
 
   return (
     <div className="space-y-6">
-      <AutoRefresh active={generating || revising} />
+      {t.job_batch_id && <JobWatcher id={t.id} />}
       <Link href="/admin/event-templates" className="text-sm text-slate-500 hover:underline">← 목록으로</Link>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -34,14 +33,14 @@ export default async function EventTemplate({ params }: { params: Promise<{ id: 
         </div>
       </div>
 
+      {stopped && <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">이전 방식으로 시작된 작업이 서버 시간 제한(5분)에 걸려 중단됐어요. 오른쪽에서 다시 만들어 주세요.</p>}
       {t.error && <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{t.error}</p>}
-      {stale && <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">AI 생성이 시간 안에 끝나지 않았어요. 요청을 조금 단순하게 바꿔서 다시 만들어 주세요.</p>}
 
       {generating ? (
         <div className="card flex flex-col items-center gap-3 p-16 text-center text-slate-600">
           <span className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" />
           <p className="font-medium">AI가 템플릿 게임을 만들고 있어요.</p>
-          <p className="text-sm text-slate-500">보통 2~5분 걸려요. 끝나면 이 화면이 자동으로 바뀌어요.</p>
+          <p className="text-sm text-slate-500">최고 품질로 만들어서 보통 5~15분 걸려요. 이 화면을 닫아도 작업은 계속되고, 다시 열면 결과를 가져와요.</p>
         </div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">

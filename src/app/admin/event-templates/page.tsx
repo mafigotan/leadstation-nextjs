@@ -4,14 +4,13 @@ import { Table, Th, fmtDateTime } from "../ui";
 import { TemplateStatus } from "./status";
 import { NewTemplateForm } from "./forms";
 
-export const maxDuration = 300;
 export const metadata = { title: "이벤트 템플릿 | 슈퍼 관리자" };
 
 export default async function EventTemplates() {
   const { supabase } = await requireSuperAdmin();
   const { data } = await supabase
     .from("event_templates")
-    .select("id, name, description, status, is_public, sort_order, updated_at, revising_since")
+    .select("id, name, description, status, is_public, sort_order, updated_at, revising_since, job_batch_id")
     .order("sort_order")
     .order("created_at", { ascending: false });
   const rows = data ?? [];

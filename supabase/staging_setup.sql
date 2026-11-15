@@ -1,4 +1,4 @@
--- LEADstation staging DB: 0001~0012 migrations in one file. Run once on the new staging Supabase project.
+-- LEADstation staging DB: 0001~0013 migrations in one file. Run once on the new staging Supabase project.
 
 -- ===== 0001_lead_collector.sql =====
 -- Lead Collector: promotion pages and the leads they collect.
@@ -1349,5 +1349,16 @@ create policy "super admins manage event templates" on public.event_templates fo
 drop policy if exists "users read public event templates" on public.event_templates;
 create policy "users read public event templates" on public.event_templates for select to authenticated
   using (is_public and status = 'ready');
+
+commit;
+
+
+-- ===== 0013_event_template_jobs.sql =====
+-- Event templates are generated through the Message Batches API (no server time limit).
+
+begin;
+
+alter table public.event_templates add column if not exists job_batch_id text;
+alter table public.event_templates add column if not exists job_kind text check (job_kind in ('create', 'revise'));
 
 commit;

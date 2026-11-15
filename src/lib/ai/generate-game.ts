@@ -80,12 +80,53 @@ async function run(system: string, user: string, effort: "medium" | "high", maxT
   return parseGame(text);
 }
 
-/** Super admin template: highest quality, may take a few minutes. With `previous`, revises that game. */
-export function generateTemplate(prompt: string, previous?: { game: GeneratedGame; feedback: string }): Promise<GeneratedGame> {
+const TEMPLATE_SYSTEM = DESIGN + "\n\nThis is a reusable template, so make the config cover every text, prize and color a marketer would want to change.";
+
+/**
+ * Super admin template at the highest quality. It can take longer than a server request may run,
+ * so it goes through the Message Batches API and is collected later with readTemplateJob().
+ * With `previous`, revises that game.
+ */
+export async function startTemplateJob(prompt: string, previous?: { game: GeneratedGame; feedback: string }): Promise<string> {
   const user = previous
     ? `지금 템플릿 게임을 아래 요청대로 고쳐서 전체를 다시 보내주세요. 잘 되는 부분은 유지하세요.\n\n원래 요청: ${prompt}\n\n수정 요청: ${previous.feedback}\n\n지금 코드:\n===CSS===\n${previous.game.css}\n===HTML===\n${previous.game.html}\n===JS===\n${previous.game.js}\n===CONFIG===\n${JSON.stringify(previous.game.config, null, 2)}\n===GUIDE===\n${previous.game.guide}`
     : `여러 프로모션에서 재사용할 이벤트 게임 템플릿을 만들어 주세요.\n\n요청: ${prompt}`;
-  return run(DESIGN + "\n\nThis is a reusable template, so make the config cover every text, prize and color a marketer would want to change.", user, "high", 64000);
+  const batch = await client.messages.batches.create({
+    requests: [
+      {
+        custom_id: "template",
+        params: {
+          model: MODEL,
+          max_tokens: 64000,
+          thinking: { type: "adaptive" },
+          output_config: { effort: "high" },
+          system: TEMPLATE_SYSTEM,
+          messages: [{ role: "user", content: user }],
+        },
+      },
+    ],
+  });
+  return batch.id;
+}
+
+/** null while the job is still running; otherwise the game or the reason it failed. */
+export async function readTemplateJob(batchId: string): Promise<null | { game?: GeneratedGame; error?: string }> {
+  const batch = await client.messages.batches.retrieve(batchId);
+  if (batch.processing_status !== "ended") return null;
+  for await (const r of await client.messages.batches.results(batchId)) {
+    if (r.result.type !== "succeeded") {
+      return { error: r.result.type === "errored" ? `AI 요청 오류: ${r.result.error.error.message}` : "AI 작업이 만료되거나 취소됐어요. 다시 시도해 주세요." };
+    }
+    const m = r.result.message;
+    if (m.stop_reason === "refusal") return { error: "AI가 이 게임 생성을 거절했어요. 설명을 바꿔서 다시 시도해 주세요." };
+    if (m.stop_reason === "max_tokens") return { error: "AI가 만든 게임이 너무 길어서 끊겼어요. 요청을 조금 단순하게 바꿔 주세요." };
+    try {
+      return { game: parseGame(m.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("")) };
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+  return { error: "AI 결과를 찾지 못했어요. 다시 시도해 주세요." };
 }
 
 /** A one-off game a user describes in the editor. */

@@ -1,17 +1,16 @@
 "use server";
 
-import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSuperAdmin } from "@/lib/supabase/server";
-import { generateTemplate, type GeneratedGame } from "@/lib/ai/generate-game";
+import { readTemplateJob, startTemplateJob, type GeneratedGame } from "@/lib/ai/generate-game";
 
 export type TemplateState = { error?: string; ok?: boolean; message?: string };
 
 const BASE = "/admin/event-templates";
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, 500);
 
-/** Starts AI generation of a new template; it finishes in the background (up to a few minutes). */
+/** Starts AI generation of a new template; the detail page collects the result when it is ready. */
 export async function createTemplate(_: TemplateState, formData: FormData): Promise<TemplateState> {
   const { supabase, user } = await requireSuperAdmin();
   const name = String(formData.get("name") ?? "").trim().slice(0, 100);
@@ -19,23 +18,20 @@ export async function createTemplate(_: TemplateState, formData: FormData): Prom
   const prompt = String(formData.get("prompt") ?? "").trim().slice(0, 4000);
   if (!name) return { error: "템플릿 이름을 입력해 주세요." };
   if (!prompt) return { error: "AI에게 줄 게임 설명을 입력해 주세요." };
+  let batchId: string;
+  try {
+    batchId = await startTemplateJob(prompt);
+  } catch (e) {
+    console.error("startTemplateJob failed", e);
+    return { error: "AI 작업을 시작하지 못했어요: " + errText(e) };
+  }
   const { data, error } = await supabase
     .from("event_templates")
-    .insert({ name, description, prompt, created_by: user.id })
+    .insert({ name, description, prompt, created_by: user.id, job_batch_id: batchId, job_kind: "create" })
     .select("id")
     .single();
   if (error || !data) return { error: "저장하지 못했어요: " + error?.message };
-  const id = data.id;
-  after(async () => {
-    try {
-      const g = await generateTemplate(prompt);
-      await supabase.from("event_templates").update({ ...gameColumns(g), status: "ready", error: null }).eq("id", id);
-    } catch (e) {
-      console.error("generateTemplate failed", e);
-      await supabase.from("event_templates").update({ status: "failed", error: errText(e) }).eq("id", id);
-    }
-  });
-  redirect(`${BASE}/${id}`);
+  redirect(`${BASE}/${data.id}`);
 }
 
 const gameColumns = (g: GeneratedGame) => ({ css: g.css, html: g.html, js: g.js, config: g.config, config_guide: g.guide });
@@ -46,29 +42,58 @@ export async function reviseTemplate(id: string, _: TemplateState, formData: For
   const feedback = String(formData.get("feedback") ?? "").trim().slice(0, 4000);
   const { data: t } = await supabase.from("event_templates").select("*").eq("id", id).single();
   if (!t) return { error: "템플릿을 찾을 수 없어요." };
+  if (t.job_batch_id) return { error: "AI가 이미 작업 중이에요. 끝난 뒤에 다시 요청해 주세요." };
   const fresh = t.status !== "ready";
   if (!fresh && !feedback) return { error: "어떻게 고칠지 적어주세요." };
   const prompt = fresh && feedback ? `${t.prompt}\n\n추가 요청: ${feedback}` : t.prompt;
+  let batchId: string;
+  try {
+    batchId = fresh
+      ? await startTemplateJob(prompt)
+      : await startTemplateJob(t.prompt, { feedback, game: { css: t.css, html: t.html, js: t.js, config: t.config, guide: t.config_guide } });
+  } catch (e) {
+    console.error("startTemplateJob failed", e);
+    return { error: "AI 작업을 시작하지 못했어요: " + errText(e) };
+  }
   await supabase
     .from("event_templates")
-    .update(fresh ? { status: "generating", error: null, prompt } : { revising_since: new Date().toISOString(), error: null })
+    .update({
+      ...(fresh ? { status: "generating", prompt } : { revising_since: new Date().toISOString() }),
+      error: null,
+      job_batch_id: batchId,
+      job_kind: fresh ? "create" : "revise",
+    })
     .eq("id", id);
-  after(async () => {
-    try {
-      const g = fresh
-        ? await generateTemplate(prompt)
-        : await generateTemplate(t.prompt, { feedback, game: { css: t.css, html: t.html, js: t.js, config: t.config, guide: t.config_guide } });
-      await supabase.from("event_templates").update({ ...gameColumns(g), status: "ready", error: null, revising_since: null }).eq("id", id);
-    } catch (e) {
-      console.error("reviseTemplate failed", e);
-      await supabase
-        .from("event_templates")
-        .update(fresh ? { status: "failed", error: errText(e) } : { revising_since: null, error: "수정 실패: " + errText(e) })
-        .eq("id", id);
-    }
-  });
   revalidatePath(`${BASE}/${id}`);
-  return { ok: true, message: "AI가 작업을 시작했어요. 몇 분 걸릴 수 있어요." };
+  return { ok: true, message: "AI가 작업을 시작했어요. 끝나면 이 화면이 자동으로 바뀌어요." };
+}
+
+/** Collects a finished AI job. The detail page calls this every few seconds while a job runs. */
+export async function pollTemplate(id: string): Promise<{ done: boolean }> {
+  const { supabase } = await requireSuperAdmin();
+  const { data: t } = await supabase.from("event_templates").select("id, job_batch_id, job_kind").eq("id", id).single();
+  if (!t?.job_batch_id) return { done: true };
+  let r: Awaited<ReturnType<typeof readTemplateJob>>;
+  try {
+    r = await readTemplateJob(t.job_batch_id);
+  } catch (e) {
+    console.error("readTemplateJob failed", e);
+    return { done: false };
+  }
+  if (!r) return { done: false };
+  const create = t.job_kind !== "revise";
+  const patch = r.game
+    ? { ...gameColumns(r.game), status: "ready", error: null }
+    : create
+      ? { status: "failed", error: r.error }
+      : { error: "수정 실패: " + r.error };
+  await supabase
+    .from("event_templates")
+    .update({ ...patch, revising_since: null, job_batch_id: null, job_kind: null })
+    .eq("id", id)
+    .eq("job_batch_id", t.job_batch_id);
+  revalidatePath(BASE, "layout");
+  return { done: true };
 }
 
 /** Name, description, order, default settings and visibility. */
