@@ -62,24 +62,6 @@ function parseGame(text: string): GeneratedGame {
   return { css: part("CSS"), html, js, config, guide: part("GUIDE") };
 }
 
-async function run(system: string, user: string, effort: "medium" | "high", maxTokens: number): Promise<GeneratedGame> {
-  const res = await client.messages
-    .stream({
-      model: MODEL,
-      max_tokens: maxTokens,
-      thinking: { type: "adaptive" },
-      output_config: { effort },
-      system,
-      messages: [{ role: "user", content: user }],
-    })
-    .finalMessage();
-  addUsage("text", res.usage.input_tokens + res.usage.output_tokens);
-  if (res.stop_reason === "refusal") throw new Error("AI가 이 게임 생성을 거절했어요. 설명을 바꿔서 다시 시도해 주세요.");
-  if (res.stop_reason === "max_tokens") throw new Error("AI가 만든 게임이 너무 길어서 끊겼어요. 더 단순한 게임으로 다시 시도해 주세요.");
-  const text = res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
-  return parseGame(text);
-}
-
 const TEMPLATE_SYSTEM = DESIGN + "\n\nThis is a reusable template, so make the config cover every text, prize and color a marketer would want to change.";
 
 /**
@@ -127,16 +109,6 @@ export async function readTemplateJob(batchId: string): Promise<null | { game?: 
     }
   }
   return { error: "AI 결과를 찾지 못했어요. 다시 시도해 주세요." };
-}
-
-/** A one-off game a user describes in the editor. */
-export function generateFreeGame(description: string, context: string): Promise<GeneratedGame> {
-  return run(
-    DESIGN + "\n\nKeep the code compact (aim for under 600 lines in total) so it is ready quickly.",
-    `만들 게임: ${description}${context ? `\n\n프로모션 정보 (게임 문구와 경품에 참고):\n${context}` : ""}`,
-    "medium",
-    48000,
-  );
 }
 
 const ConfigSchema = z.object({ config_json: z.string().describe("The complete GAME_CONFIG as a JSON object string") });

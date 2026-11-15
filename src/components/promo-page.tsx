@@ -185,7 +185,7 @@ export function SectionView({
                 onClick={onImage ? (e) => { e.stopPropagation(); onImage("game"); } : undefined}
               >
                 <span className="text-3xl">🎮</span>
-                <span>눌러서 AI로 게임 만들기</span>
+                <span>눌러서 이벤트 템플릿 고르기</span>
                 <span className="text-xs text-slate-400">룰렛, 숨은그림찾기, 카드 맞추기 등</span>
               </div>
             )}

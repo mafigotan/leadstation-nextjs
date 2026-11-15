@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { requireSite } from "@/lib/supabase/server";
 import { limitMessage, metered } from "@/lib/usage";
 import { generatePageContent } from "@/lib/ai/generate-page";
-import { fillTemplateConfig, generateFreeGame } from "@/lib/ai/generate-game";
+import { fillTemplateConfig } from "@/lib/ai/generate-game";
 import type { EventGame } from "@/lib/event-game";
 import { makeSlug } from "@/lib/slug";
 import { SLUG_RE } from "@/lib/site";
@@ -108,20 +108,6 @@ export async function savePageSections(
   revalidatePath(`/dashboard/pages/${id}`);
   revalidatePath("/dashboard/pages");
   return {};
-}
-
-/** Makes a one-off game for an event element (saved with the page by the editor). */
-export async function generateEventGame(description: string, context: string): Promise<{ game?: EventGame; error?: string }> {
-  const { supabase, site } = await requireSite();
-  const desc = String(description ?? "").trim().slice(0, 1000);
-  if (!desc) return { error: "어떤 게임을 만들지 적어주세요." };
-  try {
-    const g = await metered(supabase, site.id, ["text"], () => generateFreeGame(desc, String(context ?? "").slice(0, 1000)));
-    return { game: { css: g.css, html: g.html, js: g.js, config: g.config } };
-  } catch (e) {
-    console.error("generateFreeGame failed", e);
-    return { error: limitMessage(e) ?? (e instanceof Error && e.message.startsWith("AI") ? e.message : "게임을 만들지 못했어요. 잠시 후 다시 시도해 주세요.") };
-  }
 }
 
 export type TemplateOption = { id: string; name: string; description: string; game: EventGame };
