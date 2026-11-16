@@ -1,6 +1,7 @@
 import { requireSite } from "@/lib/supabase/server";
 import { queryLeads } from "@/lib/leads";
 import { loadUsage } from "@/lib/usage";
+import { buildSiteReport } from "@/lib/analytics/report";
 import { DashboardView, type Activity, type Member, type Notification } from "./view";
 
 export const metadata = { title: "대시보드 | LEADstation" };
@@ -9,7 +10,7 @@ export default async function DashboardHome() {
   const { supabase, user, profile, site, role } = await requireSite();
   const isAdmin = role === "admin";
 
-  const [notes, pages, articles, newsletters, media, leads, members, logs, usage, limitReq] = await Promise.all([
+  const [notes, pages, articles, newsletters, media, leads, members, logs, usage, limitReq, visits] = await Promise.all([
     supabase.from("notifications").select("id, kind, title, body, ref_id, created_at").eq("user_id", user.id).is("read_at", null)
       .order("created_at", { ascending: false }).limit(20),
     supabase.from("pages").select("id, title, status, created_at").eq("site_id", site.id).order("created_at", { ascending: false }).limit(5),
@@ -23,6 +24,7 @@ export default async function DashboardHome() {
     loadUsage(supabase, site.id),
     supabase.from("limit_requests").select("id").eq("site_id", site.id).eq("status", "pending")
       .gt("created_at", new Date(Date.now() - 12 * 3600 * 1000).toISOString()).limit(1),
+    buildSiteReport(supabase, site, 7),
   ]);
 
   const notifications = (notes.data ?? []) as Notification[];
@@ -60,6 +62,7 @@ export default async function DashboardHome() {
       people={people}
       usage={usage}
       limitRequested={!!limitReq.data?.length}
+      visits={visits}
     />
   );
 }

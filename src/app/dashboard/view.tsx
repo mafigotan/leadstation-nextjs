@@ -5,6 +5,8 @@ import { activitySubject, activityVerb } from "@/lib/activity";
 import type { Site } from "@/lib/supabase/server";
 import type { LeadWithPage } from "@/lib/leads";
 import { blogUrl, userUrl } from "@/lib/site";
+import type { ReportResult } from "@/lib/analytics/report";
+import { VisitsCard } from "./analytics/visits-card";
 import { answerJoinRequest, markAllNotificationsRead, markNotificationRead } from "./actions";
 
 export type Notification = { id: string; kind: string; title: string; body: string; ref_id: string | null; created_at: string };
@@ -67,9 +69,10 @@ export type DashboardData = {
   people: (Member & { items: Activity[] })[];
   usage: UsageItem[];
   limitRequested: boolean;
+  visits: ReportResult;
 };
 
-export function DashboardView({ name, site, isAdmin, notifications, open, pages, articles, newsletters, media, leads, people, usage, limitRequested }: DashboardData) {
+export function DashboardView({ name, site, isAdmin, notifications, open, pages, articles, newsletters, media, leads, people, usage, limitRequested, visits }: DashboardData) {
   return (
     <div className="space-y-6">
       {endsWithinTwoMonths(site.active_until) && (
@@ -142,6 +145,8 @@ export function DashboardView({ name, site, isAdmin, notifications, open, pages,
       )}
 
       <UsagePanel usage={usage} pending={limitRequested} />
+
+      <VisitsCard visits={visits} />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card title="최근 프로모션" href="/dashboard/pages">
