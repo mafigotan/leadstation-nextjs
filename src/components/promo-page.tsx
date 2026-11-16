@@ -64,11 +64,6 @@ export function SectionView({
             )}
             {T("heading", s.heading, "h1", "mt-5 text-3xl font-bold leading-tight tracking-tight sm:text-5xl", "헤드라인을 입력하세요", true)}
             {T("text", s.text, "p", "mx-auto mt-5 max-w-2xl whitespace-pre-line text-lg text-slate-600", "서브 헤드라인")}
-            {(s.label || editing) && (
-              <a href={s.url || "#signup"} className={`mt-8 inline-flex rounded-lg px-6 py-3 font-semibold text-white shadow ${theme.bg}`}>
-                {T("label", s.label, "span", "inline-block min-w-[3rem]", "버튼 문구 (비우면 숨김)", true)}
-              </a>
-            )}
           </div>
         </section>
       );
