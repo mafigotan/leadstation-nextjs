@@ -15,7 +15,7 @@ const THEME_LABELS: Record<string, string> = { indigo: "인디고", emerald: "�
 const THEME_SWATCH: Record<string, string> = { indigo: "#4f46e5", emerald: "#059669", rose: "#e11d48", amber: "#d97706", slate: "#1e293b" };
 
 const PALETTE: PaletteItem[] = [
-  { type: "hero", label: SECTION_LABELS.hero, icon: "★", hint: "배지, 헤드라인, 버튼, 이미지" },
+  { type: "hero", label: SECTION_LABELS.hero, icon: "★", hint: "배지, 헤드라인, 버튼" },
   { type: "image", label: SECTION_LABELS.image, icon: "🖼", hint: "라이브러리, AI 생성" },
   { type: "benefits", label: SECTION_LABELS.benefits, icon: "①", hint: "번호가 붙은 혜택 카드" },
   { type: "cards", label: SECTION_LABELS.cards, icon: "▦", hint: "이미지가 있는 카드" },
@@ -46,7 +46,6 @@ function SectionTools({ s, update, openImage }: { s: Section; update: (p: Partia
       return (
         <>
           <ToolInput value={s.url} onChange={(url) => update({ url: url.trim() })} placeholder="버튼 링크 (비우면 신청 폼)" width={180} />
-          <ToolBtn label="이미지 변경" onClick={() => openImage("main")}>🖼 이미지</ToolBtn>
         </>
       );
     case "image":

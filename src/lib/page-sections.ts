@@ -54,10 +54,20 @@ export function emptySection(type: SectionType): Section {
   return s;
 }
 
+/** The intro has no image of its own: an image saved on an older intro becomes an image element right below it. */
+function splitHeroImages(sections: Section[]): Section[] {
+  return sections.flatMap((s) =>
+    s.type === "hero" && s.image_url
+      ? [{ ...s, image_url: "" }, { ...emptySection("image"), id: `${s.id}i`.slice(0, 40), image_url: s.image_url }]
+      : [s],
+  );
+}
+
 export function toSections(c: PageContent): Section[] {
-  if (Array.isArray(c.sections) && c.sections.length) return sanitizeSections(c.sections);
+  if (Array.isArray(c.sections) && c.sections.length) return splitHeroImages(sanitizeSections(c.sections));
   const out: Section[] = [
-    { ...emptySection("hero"), badge: c.badge ?? "", heading: c.headline ?? "", text: c.subheadline ?? "", label: c.cta_label ?? "", image_url: c.hero_image ?? "" },
+    { ...emptySection("hero"), badge: c.badge ?? "", heading: c.headline ?? "", text: c.subheadline ?? "", label: c.cta_label ?? "" },
+    { ...emptySection("image"), image_url: c.hero_image ?? "" },
   ];
   if (c.benefits?.length) out.push({ ...emptySection("benefits"), items: c.benefits.map((b) => ({ title: b.title, description: b.description, image_url: "" })) });
   if (c.details) out.push({ ...emptySection("text"), text: c.details });
@@ -105,6 +115,7 @@ export function sanitizeSections(input: unknown): Section[] {
 /** Keeps the fixed fields (used for page titles, lists and search) in step with the elements. */
 export function withSections(c: PageContent, sections: Section[]): PageContent {
   const hero = sections.find((s) => s.type === "hero");
+  const image = sections.find((s) => s.type === "image" && s.image_url);
   const form = sections.find((s) => s.type === "form");
   const benefits = sections.find((s) => s.type === "benefits");
   return {
@@ -112,7 +123,7 @@ export function withSections(c: PageContent, sections: Section[]): PageContent {
     badge: hero?.badge ?? c.badge,
     headline: hero?.heading || c.headline,
     subheadline: hero?.text ?? c.subheadline,
-    hero_image: hero?.image_url ?? c.hero_image,
+    hero_image: image?.image_url ?? "",
     cta_label: form?.label || hero?.label || c.cta_label,
     form_title: form?.heading ?? c.form_title,
     form_description: form?.text ?? c.form_description,

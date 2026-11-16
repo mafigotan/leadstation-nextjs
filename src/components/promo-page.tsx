@@ -69,11 +69,6 @@ export function SectionView({
                 {T("label", s.label, "span", "inline-block min-w-[3rem]", "버튼 문구 (비우면 숨김)", true)}
               </a>
             )}
-            {(s.image_url || editing) && (
-              <Hot onImage={onImage} k="main" className="mx-auto mt-10 max-w-3xl">
-                <Img editing={editing} url={s.image_url} alt={s.heading} className="w-full rounded-2xl shadow-lg" label="대표 이미지 자리 (눌러서 넣기, 비워 두면 표시 안 됨)" />
-              </Hot>
-            )}
           </div>
         </section>
       );
