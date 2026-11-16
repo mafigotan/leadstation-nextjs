@@ -44,6 +44,9 @@ export type PageRow = {
   site_id: string;
   /** Promotion ID like 202601, assigned by the DB. */
   promo_no: string | null;
+  /** Promotion period (YYYY-MM-DD, Korean dates); null means no limit. */
+  starts_on?: string | null;
+  ends_on?: string | null;
   title: string;
   slug: string;
   status: "draft" | "published";

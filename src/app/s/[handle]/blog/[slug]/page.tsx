@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { blogUrl, userUrl, isSiteLive } from "@/lib/site";
+import { blogUrl } from "@/lib/site";
+import { loadPublicSite } from "@/lib/user-site";
+import { SiteFooter, SiteHeader } from "@/components/user-site";
 import { ArticleBody } from "@/components/article-view";
 import { plain, type Article } from "@/lib/writer/types";
 
 async function load(handle: string, slug: string) {
+  const site = await loadPublicSite(handle);
+  if (!site) return null;
   const supabase = await createClient();
-  const { data: site } = await supabase.from("sites").select("id, handle, name, status, active_from, active_until").eq("handle", handle.toLowerCase()).maybeSingle();
-  if (!site || !isSiteLive(site)) return null;
   // RLS: published posts for everyone, drafts only for the site members (preview on the main domain).
   const { data: article } = await supabase
     .from("articles")
@@ -71,17 +72,12 @@ export default async function BlogPost({ params }: Params) {
   }
 
   return (
-    <main className="min-h-screen bg-white" lang={lang}>
+    <div className="flex min-h-screen flex-col bg-white" lang={lang}>
       {a.status !== "published" && (
         <div className="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900">초안 미리보기예요. 발행하기 전에는 다른 사람이 볼 수 없어요.</div>
       )}
-      <header className="border-b border-slate-100">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
-          <Link href={userUrl(site.handle)} className="font-bold">{name}</Link>
-          <Link href={blogUrl(site.handle)} className="text-sm text-slate-500 hover:underline">블로그 목록</Link>
-        </div>
-      </header>
-      <div className="mx-auto max-w-3xl px-4 py-12">
+      <SiteHeader site={site} active="blog" />
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-12">
         <ArticleBody
           title={a.title}
           header={a.header_image ?? {}}
@@ -99,9 +95,9 @@ export default async function BlogPost({ params }: Params) {
             {a.tags.map((t) => <span key={t} className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">#{t}</span>)}
           </div>
         )}
-      </div>
+      </main>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
-      <footer className="pb-8 text-center text-xs text-slate-400">Powered by LEADstation</footer>
-    </main>
+      <SiteFooter site={site} />
+    </div>
   );
 }

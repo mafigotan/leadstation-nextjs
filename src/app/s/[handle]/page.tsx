@@ -1,60 +1,48 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { blogUrl, userUrl, isSiteLive } from "@/lib/site";
-import type { PageContent } from "@/lib/types";
+import { blogUrl } from "@/lib/site";
+import { featuredPromotion, listPosts, listPromotions, loadPublicSite } from "@/lib/user-site";
+import { FeaturedPromo, PostGridCard, SiteShell, siteName } from "@/components/user-site";
 
-async function load(handle: string) {
-  const supabase = await createClient();
-  const { data: site } = await supabase
-    .from("sites")
-    .select("id, handle, name, status, active_from, active_until")
-    .eq("handle", handle.toLowerCase())
-    .maybeSingle();
-  if (!site || !isSiteLive(site)) return null;
-  const { data: pages } = await supabase
-    .from("pages")
-    .select("slug, title, content, created_at")
-    .eq("site_id", site.id)
-    .eq("status", "published")
-    .order("created_at", { ascending: false });
-  return { site, pages: (pages ?? []) as { slug: string; title: string; content: PageContent; created_at: string }[] };
+type Params = { params: Promise<{ handle: string }> };
+
+export async function generateMetadata({ params }: Params): Promise<Metadata> {
+  const site = await loadPublicSite((await params).handle);
+  return site ? { title: siteName(site) } : {};
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ handle: string }> }): Promise<Metadata> {
-  const data = await load((await params).handle);
-  return data ? { title: data.site.name || data.site.handle } : {};
-}
-
-export default async function UserHome({ params }: { params: Promise<{ handle: string }> }) {
-  const data = await load((await params).handle);
-  if (!data) notFound();
-  const { site, pages } = data;
+export default async function UserHome({ params }: Params) {
+  const site = await loadPublicSite((await params).handle);
+  if (!site) notFound();
+  const [promos, { posts }] = await Promise.all([listPromotions(site.id), listPosts(site.id, 0, 6)]);
+  const featured = featuredPromotion(promos);
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-3xl px-4 py-16">
-        <h1 className="text-3xl font-bold">{site.name || site.handle}</h1>
-        <p className="mt-2 text-slate-500">
-          진행 중인 이벤트와 프로모션 ·{" "}
-          <Link href={blogUrl(site.handle)} className="text-indigo-600 hover:underline">블로그</Link>
-        </p>
-        {pages.length === 0 ? (
-          <p className="card mt-10 p-10 text-center text-slate-500">지금 진행 중인 프로모션이 없어요.</p>
+    <SiteShell site={site}>
+      {featured ? (
+        <FeaturedPromo handle={site.handle} p={featured} />
+      ) : (
+        <section className="mx-auto max-w-6xl px-4 pt-12 sm:px-6">
+          <h1 className="text-3xl font-bold">{siteName(site)}</h1>
+        </section>
+      )}
+
+      <section className="mx-auto max-w-6xl px-4 pb-20 pt-12 sm:px-6">
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <h2 className="text-2xl font-bold">블로그</h2>
+          <Link href={blogUrl(site.handle)} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium hover:bg-slate-50">
+            더보기 →
+          </Link>
+        </div>
+        {posts.length === 0 ? (
+          <p className="rounded-xl bg-slate-50 p-10 text-center text-slate-500">아직 올라온 글이 없어요.</p>
         ) : (
-          <div className="mt-10 grid gap-4 sm:grid-cols-2">
-            {pages.map((p) => (
-              <Link key={p.slug} href={userUrl(site.handle, p.slug)} className="card block p-6 transition hover:shadow-md">
-                {p.content.badge && <p className="text-xs font-semibold text-indigo-600">{p.content.badge}</p>}
-                <h2 className="mt-1 text-lg font-bold">{p.content.headline}</h2>
-                <p className="mt-2 line-clamp-2 text-sm text-slate-600">{p.content.subheadline}</p>
-              </Link>
-            ))}
+          <div className="grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
+            {posts.map((p) => <PostGridCard key={p.slug} handle={site.handle} p={p} />)}
           </div>
         )}
-      </div>
-      <footer className="pb-8 text-center text-xs text-slate-400">Powered by LEADstation</footer>
-    </main>
+      </section>
+    </SiteShell>
   );
 }

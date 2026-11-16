@@ -6,7 +6,8 @@ import type { FormState } from "@/app/welcome/actions";
 import type { Profile, Site } from "@/lib/supabase/server";
 import { ProfileFields } from "@/components/profile-fields";
 import { HandleInput } from "@/components/handle-input";
-import { addMember, cancelInvite, removeMember, saveMyInfo, saveSite, setMemberRole, switchSite } from "./actions";
+import { ImageField } from "@/components/image-field";
+import { addMember, cancelInvite, removeMember, saveMyInfo, saveSite, saveSiteInfo, setMemberRole, switchSite, type SiteInfo } from "./actions";
 
 export type Member = { user_id: string; email: string; full_name: string; phone: string; role: "admin" | "member" };
 export type Invite = { id: string; email: string; role: "admin" | "member" };
@@ -44,6 +45,40 @@ export function SiteForm({ site, rootDomain }: { site: Site; rootDomain: string 
       <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">주소를 바꾸면 이미 공유한 페이지와 블로그 링크가 더 이상 열리지 않아요.</p>
       <div className="flex items-center gap-3">
         <button disabled={pending} className="btn-primary">{pending ? "저장 중..." : "사이트 저장"}</button>
+        <Status state={state} />
+      </div>
+    </form>
+  );
+}
+
+export function SiteInfoForm({ userId, info }: { userId: string; info: SiteInfo }) {
+  const [state, action, pending] = useActionState<FormState, FormData>(saveSiteInfo, {});
+  const [logo, setLogo] = useState(info.logo_url);
+  const field = (name: keyof SiteInfo, label: string, placeholder: string, max: number, type = "text", wide = false) => (
+    <div className={wide ? "sm:col-span-2" : ""}>
+      <label className="label" htmlFor={`si-${name}`}>{label}</label>
+      <input id={`si-${name}`} name={name} type={type} defaultValue={info[name]} maxLength={max} className="input" placeholder={placeholder} />
+    </div>
+  );
+  return (
+    <form action={action} className="space-y-4">
+      <div>
+        <p className="label">로고</p>
+        <p className="mb-2 text-xs text-slate-500">사이트 헤더 왼쪽에 보여요. 가로로 긴 이미지가 잘 어울리고, 없으면 사이트 이름이 글자로 보여요.</p>
+        <input type="hidden" name="logo_url" value={logo} />
+        <ImageField userId={userId} value={logo} onChange={setLogo} compact ratio="1:1" context="회사 로고" />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {field("company_name", "상호", "예: 주식회사 네오엠씨", 100)}
+        {field("ceo_name", "대표자", "예: 홍길동", 50)}
+        {field("business_no", "사업자등록번호", "예: 123-45-67890", 30)}
+        {field("contact_phone", "연락처", "예: 02-123-4567", 30, "tel")}
+        {field("contact_email", "이메일", "예: hello@example.com", 200, "email", true)}
+        {field("address", "주소", "예: 서울시 강남구 테헤란로 123", 300, "text", true)}
+      </div>
+      <p className="text-xs text-slate-500">입력한 항목만 사이트 푸터에 보여요.</p>
+      <div className="flex items-center gap-3">
+        <button disabled={pending} className="btn-primary">{pending ? "저장 중..." : "표시 정보 저장"}</button>
         <Status state={state} />
       </div>
     </form>

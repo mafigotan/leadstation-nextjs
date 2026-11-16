@@ -87,8 +87,28 @@ export async function updateSlug(id: string, _: FormState, formData: FormData): 
   const slug = String(formData.get("slug") ?? "").trim().toLowerCase();
   if (!SLUG_RE.test(slug)) return { error: "영문 소문자, 숫자, 하이픈(-)으로 1~50자로 정해주세요." };
   if (slug === "blog") return { error: "blog는 블로그 주소로 쓰여서 사용할 수 없어요." };
+  if (slug === "promotions") return { error: "promotions는 프로모션 목록 주소로 쓰여서 사용할 수 없어요." };
   const { data, error } = await supabase.from("pages").update({ slug }).eq("id", id).select("id").single();
   if (error || !data) return { error: error?.code === "23505" ? "이미 다른 페이지에서 쓰고 있는 주소예요." : "주소를 바꾸지 못했어요." };
+  revalidatePath(`/dashboard/pages/${id}`);
+  revalidatePath("/dashboard/pages");
+  return { saved: true };
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Promotion period shown on the user site (진행 중 / 종료). Empty dates mean no limit. */
+export async function updatePeriod(id: string, _: FormState, formData: FormData): Promise<FormState> {
+  const { supabase } = await requireSite();
+  const read = (k: string) => {
+    const v = String(formData.get(k) ?? "").trim();
+    return DATE_RE.test(v) ? v : null;
+  };
+  const starts_on = read("starts_on");
+  const ends_on = read("ends_on");
+  if (starts_on && ends_on && starts_on > ends_on) return { error: "종료일은 시작일과 같거나 뒤여야 해요." };
+  const { data, error } = await supabase.from("pages").update({ starts_on, ends_on }).eq("id", id).select("id").single();
+  if (error || !data) return { error: "기간을 저장하지 못했어요." };
   revalidatePath(`/dashboard/pages/${id}`);
   revalidatePath("/dashboard/pages");
   return { saved: true };

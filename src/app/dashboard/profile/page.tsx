@@ -1,6 +1,7 @@
 import { requireSite } from "@/lib/supabase/server";
 import { daysLeft, endsWithinTwoMonths, rootDomain, siteUrl, userUrl } from "@/lib/site";
-import { MyInfoForm, SiteForm, MembersPanel, SiteSwitcher, type Member, type Invite } from "./forms";
+import { MyInfoForm, SiteForm, SiteInfoForm, MembersPanel, SiteSwitcher, type Member, type Invite } from "./forms";
+import type { SiteInfo } from "./actions";
 
 export const metadata = { title: "마이 프로필 | LEADstation" };
 
@@ -13,6 +14,9 @@ export default async function ProfilePage() {
       : Promise.resolve({ data: [] }),
   ]);
   const isAdmin = role === "admin";
+  const { data: siteInfo } = isAdmin
+    ? await supabase.from("sites").select("logo_url, company_name, ceo_name, business_no, address, contact_phone, contact_email").eq("id", site.id).maybeSingle<SiteInfo>()
+    : { data: null };
   const left = daysLeft(site.active_until);
   const soon = endsWithinTwoMonths(site.active_until);
   const { data: payments } = isAdmin
@@ -51,6 +55,18 @@ export default async function ProfilePage() {
           <p className="mt-2 text-sm text-slate-500">사이트 이름: {site.name || "-"} · 사이트 주소는 관리자만 바꿀 수 있어요.</p>
         )}
       </section>
+
+      {isAdmin && (
+        <section className="card p-6">
+          <h2 className="font-bold">사이트 표시 정보</h2>
+          <p className="mb-4 mt-1 text-sm text-slate-500">공개 사이트의 헤더 로고와 푸터에 보이는 정보예요.</p>
+          {siteInfo ? (
+            <SiteInfoForm userId={user.id} info={siteInfo} />
+          ) : (
+            <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">사이트 정보를 불러오지 못했어요. 데이터베이스 업데이트(0016)가 필요할 수 있어요.</p>
+          )}
+        </section>
+      )}
 
         <section className="card p-6">
           <h2 className="font-bold">서비스 이용 기간</h2>

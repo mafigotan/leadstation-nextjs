@@ -36,6 +36,39 @@ export async function saveSite(_: FormState, formData: FormData): Promise<FormSt
   return done("사이트 정보를 저장했어요.");
 }
 
+export type SiteInfo = {
+  logo_url: string;
+  company_name: string;
+  ceo_name: string;
+  business_no: string;
+  address: string;
+  contact_phone: string;
+  contact_email: string;
+};
+
+/** Logo and footer information shown on the public user site. */
+export async function saveSiteInfo(_: FormState, formData: FormData): Promise<FormState> {
+  const { supabase, site } = await requireSiteAdmin().catch(() => ({ supabase: null, site: null }));
+  if (!supabase || !site) return { error: "사이트 관리자만 바꿀 수 있어요." };
+  const text = (k: string, max: number) => String(formData.get(k) ?? "").trim().slice(0, max);
+  const logo = text("logo_url", 2000);
+  if (logo && !/^https:\/\//i.test(logo)) return { error: "로고 이미지 주소는 https:// 로 시작해야 해요." };
+  const email = text("contact_email", 200).toLowerCase();
+  if (email && !EMAIL_RE.test(email)) return { error: "이메일 형식을 확인해 주세요." };
+  const info: SiteInfo = {
+    logo_url: logo,
+    company_name: text("company_name", 100),
+    ceo_name: text("ceo_name", 50),
+    business_no: text("business_no", 30),
+    address: text("address", 300),
+    contact_phone: text("contact_phone", 30),
+    contact_email: email,
+  };
+  const { error } = await supabase.from("sites").update(info).eq("id", site.id);
+  if (error) return { error: "저장하지 못했어요." };
+  return done("사이트 표시 정보를 저장했어요.");
+}
+
 export async function addMember(_: FormState, formData: FormData): Promise<FormState> {
   const { supabase, site } = await requireSiteAdmin().catch(() => ({ supabase: null, site: null }));
   if (!supabase || !site) return { error: "사이트 관리자만 사용자를 추가할 수 있어요." };
