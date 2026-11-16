@@ -1,6 +1,6 @@
 import type { DailyPoint } from "@/lib/analytics/ga";
 import { deploymentLabel, gaChecks, propertyId, serviceAccount } from "@/lib/analytics/config";
-import { accessibleProperties } from "@/lib/analytics/ga";
+import { accessibleProperties, gaConfigured, realtimeBySite } from "@/lib/analytics/ga";
 
 export const fmt = (n: number) => n.toLocaleString("ko-KR");
 
@@ -76,7 +76,10 @@ export function NotConfigured() {
 export async function GaStatusPanel({ force = false, error }: { force?: boolean; error?: string }) {
   const checks = gaChecks();
   if (!force && !error && checks.every((c) => c.state === "ok")) return null;
-  const props = serviceAccount() ? await accessibleProperties() : null;
+  const [props, rt] = await Promise.all([
+    serviceAccount() ? accessibleProperties() : null,
+    gaConfigured() ? realtimeBySite() : null,
+  ]);
   const pid = propertyId();
   const label = { ok: "정상", missing: "없음", invalid: "형식 오류" } as const;
   const cls = { ok: "bg-emerald-50 text-emerald-700", missing: "bg-slate-100 text-slate-600", invalid: "bg-rose-50 text-rose-700" } as const;
@@ -109,6 +112,19 @@ export async function GaStatusPanel({ force = false, error }: { force?: boolean;
           ) : (
             <p className="mt-1 break-all text-slate-500">확인 불가 (Google Cloud에서 &quot;Google Analytics Admin API&quot;를 사용 설정하면 보여요): {props.message}</p>
           )}
+        </div>
+      )}
+      {rt && (
+        <div className="mt-3 text-xs">
+          <p className="font-medium text-slate-700">최근 30분 실시간 방문자 (사이트별, ls_site)</p>
+          {rt.ok ? (
+            rt.rows.length ? (
+              <ul className="mt-1 space-y-0.5 text-slate-600">
+                {rt.rows.map((r) => <li key={r.name}>{r.name || "(빈 값)"}: {r.value}명</li>)}
+              </ul>
+            ) : <p className="mt-1 text-slate-500">아직 없음</p>
+          ) : <p className="mt-1 break-all text-rose-700">{rt.message}</p>}
+          <p className="mt-1 text-slate-400">(not set)만 보이면 사용자 측정기준 ls_site 값이 아직 채워지지 않은 상태예요.</p>
         </div>
       )}
       {error && <p className="mt-3 break-all rounded-lg bg-rose-50 p-3 text-xs text-rose-800">API 오류: {error}</p>}

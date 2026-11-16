@@ -264,3 +264,17 @@ export async function accessibleProperties(): Promise<{ ok: true; list: Accessib
     return { ok: false, message: e instanceof Error ? e.message : String(e) };
   }
 }
+
+/** Realtime visitors (last 30 min) by the ls_site user property, unfiltered: for the setup panel. */
+export async function realtimeBySite(): Promise<{ ok: true; rows: NamedValue[] } | { ok: false; message: string }> {
+  try {
+    const r = await gaPost<GaReport>("runRealtimeReport", {
+      dimensions: [{ name: "customUser:ls_site" }],
+      metrics: [{ name: "activeUsers" }],
+      limit: 20,
+    });
+    return { ok: true, rows: (r.rows ?? []).map((x) => ({ name: dim(x, 0), value: num(x, 0) })) };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) };
+  }
+}
