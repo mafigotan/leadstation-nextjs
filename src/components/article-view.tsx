@@ -44,14 +44,13 @@ function Hot({ onImage, k, children }: { onImage?: (key: string) => void; k: str
   if (!onImage) return <>{children}</>;
   return (
     <div
-      className="group/img relative cursor-pointer"
+      className="relative cursor-pointer"
       onClick={(e) => {
         e.stopPropagation();
         onImage(k);
       }}
     >
       {children}
-      <span className="pointer-events-none absolute inset-0 hidden items-center justify-center rounded-xl bg-indigo-900/30 text-sm font-semibold text-white group-hover/img:flex">눌러서 이미지 선택</span>
     </div>
   );
 }

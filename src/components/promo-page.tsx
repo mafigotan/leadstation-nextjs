@@ -10,19 +10,18 @@ function Hot({ onImage, k, children, className = "" }: { onImage?: (key: string)
   if (!onImage) return <>{children}</>;
   return (
     <div
-      className={`group/img relative cursor-pointer ${className}`}
+      className={`relative cursor-pointer ${className}`}
       onClick={(e) => {
         e.stopPropagation();
         onImage(k);
       }}
     >
       {children}
-      <span className="pointer-events-none absolute inset-0 hidden items-center justify-center rounded-2xl bg-indigo-900/30 text-sm font-semibold text-white group-hover/img:flex">눌러서 이미지 선택</span>
     </div>
   );
 }
 
-function Img({ url, alt, className, editing, label = "이미지 자리 (눌러서 이미지 넣기)" }: { url: string; alt: string; className: string; editing?: boolean; label?: string }) {
+function Img({ url, alt, className, editing, label = "이미지 자리" }: { url: string; alt: string; className: string; editing?: boolean; label?: string }) {
   if (url) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={url} alt={alt} className={className} loading="lazy" />;
@@ -175,7 +174,7 @@ export function SectionView({
                 onClick={onImage ? (e) => { e.stopPropagation(); onImage("game"); } : undefined}
               >
                 <span className="text-3xl">🎮</span>
-                <span>눌러서 이벤트 템플릿 고르기</span>
+                <span>이벤트 템플릿 자리</span>
                 <span className="text-xs text-slate-400">룰렛, 숨은그림찾기, 카드 맞추기 등</span>
               </div>
             )}

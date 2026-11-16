@@ -91,7 +91,7 @@ function image(b: { image_url: string; image_keyword: string; heading?: string }
   if (b.image_url) {
     return `<img${preview ? ' data-ls-img="main"' : ""} src="${escUrl(b.image_url)}" alt="${esc(b.heading ?? "")}" width="100%" style="display:block;width:100%;height:auto;border:0;${style}">`;
   }
-  return preview ? placeholder("200px", "이미지 자리 (눌러서 이미지 넣기)", b.image_keyword, "main") : "";
+  return preview ? placeholder("200px", "이미지 자리", b.image_keyword, "main") : "";
 }
 
 function button(b: Block, t: Theme, siteUrl: string) {

@@ -44,7 +44,7 @@ export function NewsletterBlockView({ b, t, ed, onImage }: { b: Block; t: Theme;
     !t.images ? null : b.image_url ? (
       <Img url={b.image_url} alt={b.heading} style={{ width: "100%", height: "auto", borderRadius: radius }} onClick={() => onImage("main")} />
     ) : (
-      <Ph height={200} label="이미지 자리 (눌러서 이미지 넣기)" onClick={() => onImage("main")} />
+      <Ph height={200} label="이미지 자리" onClick={() => onImage("main")} />
     );
   const btnStyle = (): CSSProperties =>
     t.button === "outline"
