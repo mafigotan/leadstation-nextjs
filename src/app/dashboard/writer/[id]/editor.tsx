@@ -383,21 +383,13 @@ export function ArticleEditor({ article, userId, publicBase, previewBase }: { ar
         label="대표 이미지"
         tools={
           <>
-            <ToolBtn label="이미지 변경" onClick={() => setHeaderModal(true)}>🖼 이미지 변경</ToolBtn>
+            <ToolBtn label="대표 이미지 설정" onClick={() => setHeaderModal(true)}>⚙ 설정</ToolBtn>
             {header.url && <ToolBtn label="이미지 삭제" danger onClick={() => setHeader((h) => ({ ...h, url: "" }))}>✕ 삭제</ToolBtn>}
           </>
         }
       >
-        <div
-          className="group/img relative cursor-pointer"
-          onClick={(e) => {
-            e.stopPropagation();
-            select("__header");
-            setHeaderModal(true);
-          }}
-        >
+        <div className="cursor-pointer">
           <Pic natural url={header.url ?? ""} alt={header.alt ?? title} prompt={header.prompt} className="aspect-[3/2] w-full rounded-2xl" />
-          <span className="pointer-events-none absolute inset-0 hidden items-center justify-center rounded-2xl bg-indigo-900/30 text-sm font-semibold text-white group-hover/img:flex">대표 이미지 편집</span>
         </div>
       </Selectable>
       {headerModal && (
