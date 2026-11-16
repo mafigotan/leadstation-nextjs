@@ -5,6 +5,7 @@ import { submitLead, type LeadState } from "./actions";
 import { THEME_CLASSES, type Theme } from "@/lib/types";
 import { EVENT_MESSAGE } from "@/lib/event-game";
 import { GENDERS, LEAD_FIELD_LABEL, formFields, type LeadField } from "@/lib/lead-fields";
+import type { ShownTerm } from "@/lib/terms";
 
 /** Read-only field that shows the game result reported by the event element. */
 export function EventField({ value }: { value: string }) {
@@ -51,7 +52,90 @@ export function LeadFormFields({ fields: chosen, disabled }: { fields?: LeadFiel
   );
 }
 
-export function LeadForm({ pageId, sectionId, fields, ctaLabel, theme, event }: { pageId: string; sectionId?: string; fields?: LeadField[]; ctaLabel: string; theme: Theme; event?: boolean }) {
+/** Checkboxes for the form's terms, with the full text of each in a sheet. */
+function TermsConsent({ terms, agreeAll, accent }: { terms: ShownTerm[]; agreeAll: boolean; accent: string }) {
+  const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const [open, setOpen] = useState<ShownTerm | null>(null);
+  const all = terms.every((t) => checked[t.version_id]);
+  const set = (id: string, v: boolean) => setChecked((c) => ({ ...c, [id]: v }));
+  return (
+    <div className="rounded-lg border border-slate-200 px-3 py-1 text-sm text-slate-600">
+      <input type="hidden" name="terms_shown" value={terms.map((t) => t.version_id).join(",")} />
+      {agreeAll && (
+        <label className="flex min-h-11 items-center gap-2 border-b border-slate-100 font-semibold text-slate-800">
+          <input type="checkbox" className="h-4 w-4" checked={all} onChange={(e) => setChecked(Object.fromEntries(terms.map((t) => [t.version_id, e.target.checked])))} />
+          약관 전체 동의
+        </label>
+      )}
+      {terms.map((t) => (
+        <div key={t.version_id} className="flex min-h-11 items-center justify-between gap-2">
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              name={`term_${t.version_id}`}
+              required={t.required}
+              className="mt-1 h-4 w-4 shrink-0"
+              checked={!!checked[t.version_id]}
+              onChange={(e) => set(t.version_id, e.target.checked)}
+            />
+            <span>[{t.required ? "필수" : "선택"}] {t.label}</span>
+          </label>
+          {t.body && (
+            <button type="button" className="shrink-0 py-2 text-xs text-slate-500 underline" onClick={() => setOpen(t)}>
+              보기
+            </button>
+          )}
+        </div>
+      ))}
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 sm:items-center" role="dialog" aria-modal="true" aria-label={open.label} onClick={() => setOpen(null)}>
+          <div className="flex max-h-[80vh] w-full max-w-lg flex-col rounded-t-2xl bg-white sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
+              <div>
+                <p className="font-semibold text-slate-900">{open.label}</p>
+                <p className="text-xs text-slate-500">v{open.version}</p>
+              </div>
+              <button type="button" aria-label="닫기" className="px-2 text-xl text-slate-500" onClick={() => setOpen(null)}>✕</button>
+            </div>
+            <div className="overflow-y-auto whitespace-pre-line px-5 py-4 text-sm leading-relaxed text-slate-700">{open.body}</div>
+            <div className="border-t border-slate-200 px-5 py-3">
+              <button
+                type="button"
+                className={`w-full rounded-lg px-4 py-3 font-semibold text-white ${accent}`}
+                onClick={() => {
+                  set(open.version_id, true);
+                  setOpen(null);
+                }}
+              >
+                동의하고 닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function LeadForm({
+  pageId,
+  sectionId,
+  fields,
+  ctaLabel,
+  theme,
+  event,
+  terms = [],
+  agreeAll = false,
+}: {
+  pageId: string;
+  sectionId?: string;
+  fields?: LeadField[];
+  ctaLabel: string;
+  theme: Theme;
+  event?: boolean;
+  terms?: ShownTerm[];
+  agreeAll?: boolean;
+}) {
   const [eventResult, setEventResult] = useState("");
   const [localError, setLocalError] = useState("");
   useEffect(() => {
@@ -90,14 +174,20 @@ export function LeadForm({ pageId, sectionId, fields, ctaLabel, theme, event }: 
       <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden />
       <LeadFormFields fields={fields} />
       {event && <EventField value={eventResult} />}
-      <label className="flex items-start gap-2 text-sm text-slate-600">
-        <input type="checkbox" name="privacy" required className="mt-1" />
-        <span>[필수] 개인정보({personal.join(", ") || "입력한 정보"}) 수집 및 이용에 동의합니다.</span>
-      </label>
-      <label className="flex items-start gap-2 text-sm text-slate-600">
-        <input type="checkbox" name="marketing" className="mt-1" />
-        <span>[선택] 이벤트 및 마케팅 정보 수신에 동의합니다.</span>
-      </label>
+      {terms.length ? (
+        <TermsConsent terms={terms} agreeAll={agreeAll} accent={t.bg} />
+      ) : (
+        <>
+          <label className="flex items-start gap-2 text-sm text-slate-600">
+            <input type="checkbox" name="privacy" required className="mt-1" />
+            <span>[필수] 개인정보({personal.join(", ") || "입력한 정보"}) 수집 및 이용에 동의합니다.</span>
+          </label>
+          <label className="flex items-start gap-2 text-sm text-slate-600">
+            <input type="checkbox" name="marketing" className="mt-1" />
+            <span>[선택] 이벤트 및 마케팅 정보 수신에 동의합니다.</span>
+          </label>
+        </>
+      )}
       {(localError || state.error) && <p className="text-sm text-red-600">{localError || state.error}</p>}
       <button type="submit" disabled={pending} className={`w-full rounded-lg px-4 py-3 font-semibold text-white disabled:opacity-60 ${t.bg}`}>
         {pending ? "신청 중..." : ctaLabel}

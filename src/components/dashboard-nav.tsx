@@ -7,6 +7,7 @@ const items = [
   { href: "/dashboard", label: "대시보드" },
   { href: "/dashboard/pages", label: "프로모션" },
   { href: "/dashboard/leads", label: "리드 관리" },
+  { href: "/dashboard/terms", label: "약관 관리" },
   { href: "/dashboard/writer", label: "AI 글쓰기" },
   { href: "/dashboard/newsletters", label: "AI 뉴스레터" },
   { href: "/dashboard/recipients", label: "수신자" },

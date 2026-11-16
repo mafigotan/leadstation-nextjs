@@ -6,6 +6,7 @@ import { PromoPage } from "@/components/promo-page";
 import { hasEvent, toSections } from "@/lib/page-sections";
 import type { PageRow } from "@/lib/types";
 import { LeadForm } from "@/app/p/[slug]/lead-form";
+import { resolveFormTerms } from "@/lib/terms";
 
 async function getPage(handle: string, slug: string) {
   const supabase = await createClient();
@@ -34,6 +35,9 @@ export default async function UserPromoPage({ params }: Params) {
   const { handle, slug } = await params;
   const page = await getPage(handle, slug);
   if (!page) notFound();
+  const sections = toSections(page.content);
+  const formSection = sections.find((s) => s.type === "form") ?? null;
+  const terms = await resolveFormTerms(await createClient(), page.site_id, formSection);
 
   return (
     <>
@@ -44,7 +48,18 @@ export default async function UserPromoPage({ params }: Params) {
       )}
       <PromoPage
         content={page.content}
-        form={(s) => <LeadForm pageId={page.id} sectionId={s?.id} fields={s?.fields} event={hasEvent(toSections(page.content))} ctaLabel={s?.label || page.content.cta_label} theme={page.content.theme} />}
+        form={(s) => (
+          <LeadForm
+            pageId={page.id}
+            sectionId={s?.id}
+            fields={s?.fields}
+            event={hasEvent(sections)}
+            ctaLabel={s?.label || page.content.cta_label}
+            theme={page.content.theme}
+            terms={terms}
+            agreeAll={!!formSection?.terms && !!formSection.agree_all}
+          />
+        )}
       />
       <footer className="border-t border-slate-100 py-6 text-center text-xs text-slate-400">Powered by LEADstation</footer>
     </>

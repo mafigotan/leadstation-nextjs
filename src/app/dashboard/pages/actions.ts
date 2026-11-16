@@ -9,7 +9,8 @@ import { fillTemplateConfig } from "@/lib/ai/generate-game";
 import type { EventGame } from "@/lib/event-game";
 import { makeSlug } from "@/lib/slug";
 import { SLUG_RE } from "@/lib/site";
-import { sanitizeSections, toSections, withSections } from "@/lib/page-sections";
+import { sanitizeSections, toSections, withSections, type Section } from "@/lib/page-sections";
+import { listTermOptions } from "@/lib/terms";
 import { cleanFields } from "@/lib/lead-fields";
 import { BriefSchema, THEMES, type PageContent, type Theme } from "@/lib/types";
 
@@ -92,6 +93,23 @@ export async function updateSlug(id: string, _: FormState, formData: FormData): 
   return { saved: true };
 }
 
+/** A form with its own terms needs a required privacy term, and pinned versions must be published versions of that term. */
+async function checkFormTerms(supabase: Awaited<ReturnType<typeof requireSite>>["supabase"], siteId: string, sections: Section[]): Promise<string | null> {
+  const form = sections.find((s) => s.type === "form");
+  if (!form?.terms) return null;
+  const options = await listTermOptions(supabase, siteId);
+  const byId = new Map(options.map((o) => [o.id, o]));
+  for (const t of form.terms) {
+    const o = byId.get(t.term_id);
+    if (!o) return "신청 폼에 찾을 수 없는 약관이 있어요. 약관 설정에서 빼거나 바꿔 주세요.";
+    if (t.version_id && !o.versions.some((v) => v.id === t.version_id)) return `‘${o.title}’에서 고른 버전을 찾을 수 없어요.`;
+  }
+  if (!form.terms.some((t) => t.required && byId.get(t.term_id)?.kind === "privacy")) {
+    return "신청 폼에는 필수 ‘개인정보 수집·이용’ 약관이 하나 이상 있어야 해요. 신청 폼을 누르고 ‘약관’에서 설정해 주세요.";
+  }
+  return null;
+}
+
 export async function savePageSections(
   id: string,
   input: { title: string; theme: string; sections: unknown },
@@ -100,6 +118,8 @@ export async function savePageSections(
   const { data: page } = await supabase.from("pages").select("content").eq("id", id).eq("site_id", site.id).single();
   if (!page) return { error: "페이지를 찾을 수 없어요." };
   const sections = sanitizeSections(input.sections);
+  const termsError = await checkFormTerms(supabase, site.id, sections);
+  if (termsError) return { error: termsError };
   const theme = (THEMES as readonly string[]).includes(input.theme) ? (input.theme as Theme) : "indigo";
   const content = withSections({ ...(page.content as PageContent), theme }, sections);
   const title = String(input.title ?? "").trim().slice(0, 200) || content.headline;

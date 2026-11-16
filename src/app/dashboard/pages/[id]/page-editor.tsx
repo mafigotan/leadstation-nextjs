@@ -10,6 +10,8 @@ import { ImageMenu } from "@/components/image-field";
 import { LEAD_FIELDS, formFields, type LeadField } from "@/lib/lead-fields";
 import { EventField, LeadFormFields } from "@/app/p/[slug]/lead-form";
 import { ToolBtn, ToolInput, VisualEditor, type PaletteItem } from "@/components/visual-editor";
+import type { TermOption } from "@/lib/terms";
+import { TermsPicker, formTermsOf, previewTerms, termsProblem } from "./terms-picker";
 
 const THEME_LABELS: Record<string, string> = { indigo: "인디고", emerald: "에메랄드", rose: "로즈", amber: "앰버", slate: "슬레이트" };
 const THEME_SWATCH: Record<string, string> = { indigo: "#4f46e5", emerald: "#059669", rose: "#e11d48", amber: "#d97706", slate: "#1e293b" };
@@ -27,19 +29,30 @@ const PALETTE: PaletteItem[] = [
   { type: "divider", label: SECTION_LABELS.divider, icon: "—" },
 ];
 
-function MockForm({ label, theme, fields, event }: { label: string; theme: Theme; fields?: LeadField[]; event: boolean }) {
+function MockForm({ label, theme, fields, event, terms, agreeAll }: { label: string; theme: Theme; fields?: LeadField[]; event: boolean; terms: ReturnType<typeof previewTerms>; agreeAll: boolean }) {
   const t = THEME_CLASSES[theme] ?? THEME_CLASSES.indigo;
   return (
     <div className="pointer-events-none space-y-4 rounded-xl border border-slate-200 p-6 shadow-sm">
       <LeadFormFields fields={fields} disabled />
       {event && <EventField value="" />}
+      {terms.length > 0 && (
+        <div className="space-y-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600">
+          {agreeAll && <p className="border-b border-slate-100 pb-1.5 font-semibold">☐ 약관 전체 동의</p>}
+          {terms.map((x) => (
+            <p key={x.key} className="flex justify-between gap-2">
+              <span>☐ [{x.required ? "필수" : "선택"}] {x.label}</span>
+              <span className="shrink-0 text-xs text-slate-400">v{x.version}{x.pinned ? " 고정" : ""} · 보기</span>
+            </p>
+          ))}
+        </div>
+      )}
       <div className={`rounded-lg py-2.5 text-center text-sm font-semibold text-white ${t.bg}`}>{label || "신청하기"}</div>
       <p className="text-center text-xs text-slate-400">편집 화면에서는 입력할 수 없어요.</p>
     </div>
   );
 }
 
-function SectionTools({ s, update, openImage }: { s: Section; update: (p: Partial<Section>) => void; openImage: (key: string) => void }) {
+function SectionTools({ s, update, openImage, termOptions }: { s: Section; update: (p: Partial<Section>) => void; openImage: (key: string) => void; termOptions: TermOption[] }) {
   const newItem = { title: "", description: "", image_url: "" };
   switch (s.type) {
     case "hero":
@@ -76,6 +89,10 @@ function SectionTools({ s, update, openImage }: { s: Section; update: (p: Partia
               {f.label}
             </ToolBtn>
           ))}
+          <span className="ml-1 text-xs text-slate-400">|</span>
+          <ToolBtn label="신청 폼 약관 설정" danger={!!termsProblem(s, termOptions)} onClick={() => openImage("terms")}>
+            📄 약관 {formTermsOf(s, termOptions).length}{termsProblem(s, termOptions) ? " ⚠" : ""}
+          </ToolBtn>
         </>
       );
     }
@@ -282,12 +299,14 @@ export function PageEditor({
   content,
   userId,
   aside,
+  termOptions,
 }: {
   id: string;
   title: string;
   content: PageContent;
   userId: string;
   aside: ReactNode;
+  termOptions: TermOption[];
 }) {
   const [title, setTitle] = useState(initialTitle);
   const [theme, setTheme] = useState<Theme>(content.theme ?? "indigo");
@@ -380,13 +399,13 @@ export function PageEditor({
         canvasClassName="card bg-white pb-6"
         canDuplicate={(s) => s.type !== "form"}
         canAdd={(type) => (type === "form" && sections.some((s) => s.type === "form") ? "신청 폼은 프로모션에 하나만 넣을 수 있어요." : null)}
-        modalTitle={(key) => (key === "game" ? "이벤트 템플릿 고르기" : "이미지")}
+        modalTitle={(key) => (key === "game" ? "이벤트 템플릿 고르기" : key === "terms" ? "신청 폼 약관" : "이미지")}
         renderBlock={(s, _i, { onImage, ed }) => (
-          <SectionView s={s} theme={t} ed={ed} onImage={onImage} form={<MockForm label={s.label || formLabel} theme={theme} fields={s.fields} event={hasEvent(sections)} />} />
+          <SectionView s={s} theme={t} ed={ed} onImage={onImage} form={<MockForm label={s.label || formLabel} theme={theme} fields={s.fields} event={hasEvent(sections)} terms={previewTerms(s, termOptions)} agreeAll={!!s.terms && !!s.agree_all} />} />
         )}
-        renderTools={(s, update, openImage) => <SectionTools s={s} update={update} openImage={openImage} />}
+        renderTools={(s, update, openImage) => <SectionTools s={s} update={update} openImage={openImage} termOptions={termOptions} />}
         renderImage={(s, key, update, close) =>
-          key === "game" ? <GameMaker s={s} update={update} close={close} context={[title, content.subheadline].filter(Boolean).join("\n")} /> : <SectionImage s={s} k={key} update={update} userId={userId} />
+          key === "terms" ? <TermsPicker s={s} update={update} options={termOptions} /> : key === "game" ? <GameMaker s={s} update={update} close={close} context={[title, content.subheadline].filter(Boolean).join("\n")} /> : <SectionImage s={s} k={key} update={update} userId={userId} />
         }
       />
       <p className="mt-3 text-center text-xs text-slate-400">글자를 누르면 바로 고칠 수 있어요. 요소를 누르면 위쪽에 메뉴가, 이미지를 누르면 이미지 창이 열려요. Ctrl+S로 저장해요.</p>

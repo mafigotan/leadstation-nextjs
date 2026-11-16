@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { queryLeads } from "@/lib/leads";
+import { consentText, queryLeads } from "@/lib/leads";
 
 function csvCell(value: unknown): string {
   let s = value == null ? "" : String(value);
@@ -20,10 +20,11 @@ export async function GET(request: NextRequest) {
   const leads = await queryLeads(supabase, {
     pageId: params.get("page") ?? undefined,
     q: params.get("q") ?? undefined,
+    marketing: params.get("marketing") ?? undefined,
     limit: 10000,
   });
 
-  const header = ["신청일", "이름", "이메일", "연락처", "주소", "성별", "나이", "국적", "기타(문의 내용)", "이벤트 결과", "마케팅 동의", "프로모션"];
+  const header = ["신청일", "이름", "이메일", "연락처", "주소", "성별", "나이", "국적", "기타(문의 내용)", "이벤트 결과", "마케팅 동의", "약관 동의 내역", "프로모션"];
   const rows = leads.map((l) => [
     new Date(l.created_at).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }),
     l.name,
@@ -36,6 +37,7 @@ export async function GET(request: NextRequest) {
     l.message,
     l.event,
     l.marketing_consent ? "동의" : "미동의",
+    consentText(l),
     l.pages?.title,
   ]);
   // BOM so Excel opens Korean text correctly.

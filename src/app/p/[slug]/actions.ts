@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { GENDERS, LEAD_FIELD_LABEL, formFields, type LeadField } from "@/lib/lead-fields";
 import { hasEvent, toSections } from "@/lib/page-sections";
 import type { PageContent } from "@/lib/types";
+import { resolveFormTerms } from "@/lib/terms";
 
 const FIELD_SCHEMA: Record<LeadField, z.ZodType<unknown>> = {
   name: z.string().max(100, "이름이 너무 길어요."),
@@ -22,18 +23,32 @@ export type LeadState = { error?: string; done?: boolean };
 export async function submitLead(pageId: string, sectionId: string, _: LeadState, formData: FormData): Promise<LeadState> {
   // Honeypot: real visitors leave this hidden field empty.
   if (formData.get("website")) return { done: true };
-  if (formData.get("privacy") !== "on") return { error: "개인정보 수집 및 이용에 동의해 주세요." };
 
   const supabase = await createClient();
   // The page's own form decides which fields are accepted and required.
-  const { data: page } = await supabase.from("pages").select("content").eq("id", pageId).maybeSingle<{ content: PageContent }>();
+  const { data: page } = await supabase.from("pages").select("site_id, content").eq("id", pageId).maybeSingle<{ site_id: string; content: PageContent }>();
   if (!page) return { error: "공개된 페이지에서만 신청할 수 있어요." };
   const sections = toSections(page.content);
   const forms = sections.filter((s) => s.type === "form");
   const section = forms.find((s) => s.id === sectionId) ?? forms[0];
   const { fields, required } = formFields(section?.fields);
 
-  const row: Record<string, unknown> = { page_id: pageId, marketing_consent: formData.get("marketing") === "on" };
+  // The terms this form shows now. Without any (database not migrated yet), the old fixed checkboxes apply.
+  const terms = await resolveFormTerms(supabase, page.site_id, section);
+  const agreed = (id: string) => formData.get(`term_${id}`) === "on";
+  if (terms.length) {
+    const shown = String(formData.get("terms_shown") ?? "").split(",").filter(Boolean).sort().join(",");
+    if (shown !== terms.map((t) => t.version_id).sort().join(",")) {
+      return { error: "약관 내용이 바뀌었어요. 페이지를 새로고침한 뒤 약관을 다시 확인하고 신청해 주세요." };
+    }
+    const missing = terms.find((t) => t.required && !agreed(t.version_id));
+    if (missing) return { error: `필수 약관에 동의해 주세요: ${missing.label}` };
+  } else if (formData.get("privacy") !== "on") {
+    return { error: "개인정보 수집 및 이용에 동의해 주세요." };
+  }
+
+  const marketing = terms.length ? terms.some((t) => t.kind === "marketing" && agreed(t.version_id)) : formData.get("marketing") === "on";
+  const row: Record<string, unknown> = { page_id: pageId, marketing_consent: marketing };
   for (const f of fields) {
     const raw = String(formData.get(f) ?? "").trim();
     if (!raw && required.includes(f)) return { error: `${LEAD_FIELD_LABEL[f]}을(를) 입력해 주세요.` };
@@ -48,7 +63,13 @@ export async function submitLead(pageId: string, sectionId: string, _: LeadState
     row.event = ev;
   }
 
-  const { error } = await supabase.from("leads").insert(row);
+  const { error } = terms.length
+    ? await supabase.rpc("submit_lead", {
+        p_page: pageId,
+        p_lead: row,
+        p_consents: terms.map((t) => ({ version_id: t.version_id, required: t.required, agreed: agreed(t.version_id) })),
+      })
+    : await supabase.from("leads").insert(row);
   if (error) {
     console.error("insert lead failed", error);
     return { error: "신청을 저장하지 못했어요. 잠시 후 다시 시도해 주세요." };

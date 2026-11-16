@@ -8,6 +8,7 @@ import { deletePage, setPublished } from "../actions";
 import { PageEditor } from "./page-editor";
 import { CopyButton } from "@/components/copy-button";
 import { SlugForm } from "./slug-form";
+import { listTermOptions } from "@/lib/terms";
 
 export default async function EditPage({
   params,
@@ -24,6 +25,7 @@ export default async function EditPage({
     .single<PageRow>();
   if (!page) notFound();
 
+  const termOptions = await listTermOptions(supabase, site.id);
   const { count } = await supabase
     .from("leads")
     .select("id", { count: "exact", head: true })
@@ -63,6 +65,7 @@ export default async function EditPage({
         title={page.title}
         content={page.content}
         userId={user.id}
+        termOptions={termOptions}
         aside={
           <div className="space-y-4">
             <div className="card space-y-3 p-5">

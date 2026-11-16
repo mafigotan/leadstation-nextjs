@@ -2,6 +2,7 @@
 import type { PageContent } from "./types";
 import { cleanFields, type LeadField } from "./lead-fields";
 import { sanitizeGame, type EventGame } from "./event-game";
+import { sanitizeFormTerms, type FormTerm } from "./terms";
 
 export const SECTION_TYPES = ["hero", "image", "benefits", "cards", "text", "quote", "button", "form", "event", "divider"] as const;
 export type SectionType = (typeof SECTION_TYPES)[number];
@@ -32,6 +33,10 @@ export type Section = {
   items: SectionItem[];
   /** Lead form fields (form sections only). Empty means the legacy set. */
   fields?: LeadField[];
+  /** Terms on the lead form (form sections only). Missing means the site's default terms. */
+  terms?: FormTerm[];
+  /** Show an "agree to all" checkbox above the terms (form sections only). */
+  agree_all?: boolean;
   /** AI-made game (event sections only). */
   game?: EventGame;
 };
@@ -100,6 +105,7 @@ export function sanitizeSections(input: unknown): Section[] {
         label: str(r.label, 60),
         url: url(r.url),
         ...(r.type === "form" && cleanFields(r.fields).length ? { fields: cleanFields(r.fields) } : {}),
+        ...(r.type === "form" && Array.isArray(r.terms) ? { terms: sanitizeFormTerms(r.terms), agree_all: r.agree_all === true } : {}),
         ...(r.type === "event" && sanitizeGame(r.game) ? { game: sanitizeGame(r.game) } : {}),
         items: Array.isArray(r.items)
           ? r.items.slice(0, 12).map((it) => {
