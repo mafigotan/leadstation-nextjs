@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { requireSite } from "@/lib/supabase/server";
+import { isSuperAdmin, requireSite } from "@/lib/supabase/server";
 import { userUrl } from "@/lib/site";
 import { RANGES, getRealtimeUsers, type RangeDays } from "@/lib/analytics/ga";
 import { buildSiteReport, KIND_LABEL, type ContentKind } from "@/lib/analytics/report";
-import { DailyBars, Delta, Kpi, NotConfigured, duration, fmt, pct } from "./parts";
+import { DailyBars, Delta, GaStatusPanel, Kpi, NotConfigured, duration, fmt, pct } from "./parts";
 
 export const metadata = { title: "방문 통계 | LEADstation" };
 
@@ -38,12 +38,14 @@ function Bars({ items }: { items: { name: string; value: number }[] }) {
   );
 }
 
-export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<{ range?: string; kind?: string }> }) {
+export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<{ range?: string; kind?: string; check?: string }> }) {
   const sp = await searchParams;
   const days = (RANGES.find((r) => String(r) === sp.range) ?? 28) as RangeDays;
   const kind = (KINDS.find((k) => k.key === sp.kind)?.key ?? "all") as "all" | ContentKind;
   const { supabase, site } = await requireSite();
-  const [res, live] = await Promise.all([buildSiteReport(supabase, site, days), getRealtimeUsers(site.handle)]);
+  const [res, live, superAdmin] = await Promise.all([buildSiteReport(supabase, site, days), getRealtimeUsers(site.handle), isSuperAdmin(supabase)]);
+  // Setup diagnostics: on staging/previews for everyone, on production only for platform admins.
+  const showStatus = superAdmin || process.env.VERCEL_ENV !== "production";
   const address = userUrl(site.handle).replace(/^https?:\/\//, "").replace(/\/$/, "");
   const q = (r: number, k: string) => `/dashboard/analytics?range=${r}${k !== "all" ? `&kind=${k}` : ""}`;
 
@@ -72,6 +74,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
           </div>
         </div>
       </div>
+
+      {showStatus && <GaStatusPanel force={sp.check === "1"} error={!res.ok && res.reason === "error" ? res.message : undefined} />}
 
       {!res.ok ? (
         res.reason === "not_configured" ? <NotConfigured /> : (

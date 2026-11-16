@@ -39,6 +39,10 @@ staging과 운영은 **GA4 속성을 따로** 만든다 (테스트 방문이 운
 | GOOGLE_SERVICE_ACCOUNT_JSON | 3-4의 JSON 파일 내용 전체 (한 줄로 붙여넣거나 base64) |
 
 staging은 환경 Preview·브랜치 `staging`, 운영은 Production. 추가 후 재배포해야 적용된다.
+측정 ID는 `NEXT_PUBLIC_GA_MEASUREMENT_ID` 대신 `GA_MEASUREMENT_ID` 이름으로 넣어도 된다 (빌드 없이 실행 시점에 읽힘).
+
+설정 확인: 대시보드 `방문 통계?check=1` 에서 이 배포가 각 변수를 어떻게 읽는지 보여준다
+(staging은 누구나, 운영은 슈퍼 관리자만).
 
 ## 동작 방식
 - 태그: `src/components/site-analytics.tsx` (`/s/[handle]` 레이아웃에서만 로드, 대시보드·관리자 화면엔 없음)

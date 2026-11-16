@@ -1,4 +1,5 @@
 import type { DailyPoint } from "@/lib/analytics/ga";
+import { deploymentLabel, gaChecks } from "@/lib/analytics/config";
 
 export const fmt = (n: number) => n.toLocaleString("ko-KR");
 
@@ -67,5 +68,29 @@ export function NotConfigured() {
       <p className="font-semibold">방문 통계 준비 중이에요</p>
       <p className="mt-2 text-sm text-slate-500">Google Analytics 연결 설정이 끝나면 내 사이트 방문 통계가 여기에 표시돼요.</p>
     </div>
+  );
+}
+
+/** Which GA variables this deployment can see. Shown while something is missing, or with ?check=1. */
+export function GaStatusPanel({ force = false, error }: { force?: boolean; error?: string }) {
+  const checks = gaChecks();
+  if (!force && !error && checks.every((c) => c.state === "ok")) return null;
+  const label = { ok: "정상", missing: "없음", invalid: "형식 오류" } as const;
+  const cls = { ok: "bg-emerald-50 text-emerald-700", missing: "bg-slate-100 text-slate-600", invalid: "bg-rose-50 text-rose-700" } as const;
+  return (
+    <section className="card p-5">
+      <h2 className="font-bold">GA 연결 상태</h2>
+      <p className="mt-1 text-xs text-slate-500">이 배포: {deploymentLabel()}</p>
+      <ul className="mt-3 divide-y divide-slate-100 text-sm">
+        {checks.map((c) => (
+          <li key={c.name} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+            <code className="text-xs">{c.name}</code>
+            <span className={`rounded-full px-2 py-0.5 text-xs ${cls[c.state]}`}>{label[c.state]}</span>
+            <span className="min-w-0 break-all text-xs text-slate-500">{c.detail}</span>
+          </li>
+        ))}
+      </ul>
+      {error && <p className="mt-3 break-all rounded-lg bg-rose-50 p-3 text-xs text-rose-800">API 오류: {error}</p>}
+    </section>
   );
 }

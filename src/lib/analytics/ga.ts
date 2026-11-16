@@ -1,6 +1,7 @@
 import "server-only";
 import { createSign } from "node:crypto";
 import { unstable_cache } from "next/cache";
+import { propertyId, serviceAccount as readServiceAccount } from "./config";
 
 /**
  * Site visit statistics from the platform's single GA4 property (GA4 Data API, service account).
@@ -36,17 +37,14 @@ export type SiteStats = {
 
 export type StatsResult = { ok: true; stats: SiteStats } | { ok: false; reason: "not_configured" | "error"; message?: string };
 
-type ServiceAccount = { client_email: string; private_key: string };
-
 export function gaConfigured(): boolean {
-  return !!(process.env.GA4_PROPERTY_ID?.trim() && process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim());
+  return !!(propertyId() && readServiceAccount());
 }
 
-function serviceAccount(): ServiceAccount {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON!.trim();
-  const text = raw.startsWith("{") ? raw : Buffer.from(raw, "base64").toString("utf8");
-  const sa = JSON.parse(text) as ServiceAccount;
-  return { client_email: sa.client_email, private_key: sa.private_key.replace(/\\n/g, "\n") };
+function serviceAccount() {
+  const sa = readServiceAccount();
+  if (!sa) throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON을 읽을 수 없어요");
+  return sa;
 }
 
 const b64url = (s: string | Buffer) => Buffer.from(s).toString("base64url");
@@ -84,7 +82,7 @@ type GaRow = { dimensionValues?: { value: string }[]; metricValues?: { value: st
 type GaReport = { rows?: GaRow[] };
 
 async function gaPost<T>(method: string, body: unknown): Promise<T> {
-  const property = process.env.GA4_PROPERTY_ID!.trim().replace(/^properties\//, "");
+  const property = propertyId();
   const res = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${property}:${method}`, {
     method: "POST",
     headers: { Authorization: `Bearer ${await accessToken()}`, "Content-Type": "application/json" },
