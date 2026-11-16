@@ -101,7 +101,7 @@ function SectionTools({ s, update, openImage, termOptions }: { s: Section; updat
   const newItem = { title: "", description: "", image_url: "" };
   switch (s.type) {
     case "image":
-      return <ToolBtn label="이미지 변경" onClick={() => openImage("main")}>🖼 이미지 변경</ToolBtn>;
+      return <ToolBtn label="이미지 설정" onClick={() => openImage("main")}>⚙ 설정</ToolBtn>;
     case "benefits":
     case "cards":
       return (
@@ -444,6 +444,7 @@ export function PageEditor({
         canvasClassName="card bg-white pb-6"
         canDuplicate={(s) => s.type !== "form"}
         canAdd={(type) => (type === "form" && sections.some((s) => s.type === "form") ? "신청 폼은 프로모션에 하나만 넣을 수 있어요." : null)}
+        toolKeys={["main", "game"]}
         modalTitle={(key) => (key === "game" ? "이벤트 템플릿 고르기" : key === "terms" ? "신청 폼 약관" : key === "fields" ? "신청 폼 필드" : "이미지")}
         renderBlock={(s, _i, { onImage, ed }) => (
           <SectionView s={s} theme={t} ed={ed} onImage={onImage} form={<MockForm label={s.label || formLabel} theme={theme} fields={s.fields} required={s.required} event={hasEvent(sections)} terms={previewTerms(s, termOptions)} agreeAll={!!s.terms && !!s.agree_all} />} />

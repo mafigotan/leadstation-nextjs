@@ -6,7 +6,8 @@ import { Editable, focusEd } from "./editable";
 /**
  * Shared visual editor: element palette on the left, near-final draft on the right.
  * Text in the draft is edited in place. Clicking an element shows its menu above it
- * (move, duplicate, delete and element options). Images open a modal.
+ * (move, duplicate, delete and element options). Clicking an image inside an element
+ * shows that element's menu with a 설정 button, which opens the image modal.
  * Elements are added by dragging from the palette onto the blue lines.
  */
 
@@ -137,6 +138,7 @@ export function VisualEditor<B extends { id: string }>({
   canDuplicate,
   canAdd,
   modalTitle,
+  toolKeys = ["main"],
 }: {
   blocks: B[];
   onChange: (blocks: B[]) => void;
@@ -165,11 +167,15 @@ export function VisualEditor<B extends { id: string }>({
   canAdd?: (type: string) => string | null;
   /** Title of the modal opened for key `key` (default 이미지). */
   modalTitle?: (key: string) => string;
+  /** Image keys whose 설정 button already comes from renderTools (default ["main"]). */
+  toolKeys?: string[];
 }) {
   const [tab, setTab] = useState<"blocks" | "settings">(initialTab);
   const [drag, setDrag] = useState<Drag>(null);
   const [over, setOver] = useState<number | null>(null);
   const [image, setImage] = useState<{ id: string; key: string } | null>(null);
+  /** The image last clicked in the draft; its element menu shows 설정 for it. */
+  const [pick, setPick] = useState<{ id: string; key: string } | null>(null);
   const [notice, setNotice] = useState("");
   useEffect(() => {
     if (!notice) return;
@@ -321,11 +327,17 @@ export function VisualEditor<B extends { id: string }>({
                 onSelect(b.id);
                 setImage({ id: b.id, key });
               };
+              const pickImage = (key: string) => {
+                onSelect(b.id);
+                setPick({ id: b.id, key });
+              };
+              const picked = pick && pick.id === b.id && selected === b.id ? pick.key : null;
               return [
                 <Frame
                   key={b.id}
                   id={b.id}
                   label={labels(b)}
+                  onFrameClick={() => setPick(null)}
                   onDragStart={() => setDrag({ kind: "move", id: b.id })}
                   onDragEnd={() => {
                     setDrag(null);
@@ -356,9 +368,14 @@ export function VisualEditor<B extends { id: string }>({
                       </ToolBtn>
                     </>
                   }
-                  tools={renderTools?.(b, (p) => update(b.id, p), openImage)}
+                  tools={withSetting(
+                    picked && renderImage && !toolKeys.includes(picked) ? (
+                      <ToolBtn label={`${modalTitle?.(picked) ?? "이미지"} 설정`} onClick={() => openImage(picked)}>⚙ 설정</ToolBtn>
+                    ) : null,
+                    renderTools?.(b, (p) => update(b.id, p), openImage),
+                  )}
                 >
-                  {renderBlock(b, i, { onImage: openImage, ed: makeEd(b, replace), selected: selected === b.id })}
+                  {renderBlock(b, i, { onImage: pickImage, ed: makeEd(b, replace), selected: selected === b.id })}
                 </Frame>,
                 zone(i + 1),
               ];
@@ -373,6 +390,17 @@ export function VisualEditor<B extends { id: string }>({
         </Modal>
       )}
     </SelCtx.Provider>
+  );
+}
+
+/** The 설정 button for a clicked image, then the element's own tools. */
+function withSetting(setting: ReactNode, tools: ReactNode) {
+  if (!setting) return tools;
+  return (
+    <>
+      {setting}
+      {tools}
+    </>
   );
 }
 
@@ -429,6 +457,7 @@ function Frame({
   tools,
   onDragStart,
   onDragEnd,
+  onFrameClick,
 }: {
   id: string;
   label: string;
@@ -437,6 +466,8 @@ function Frame({
   tools?: ReactNode;
   onDragStart?: () => void;
   onDragEnd?: () => void;
+  /** A click on the element itself (not on an image inside it). */
+  onFrameClick?: () => void;
 }) {
   const { selected, select } = useSelection();
   const on = selected === id;
@@ -446,6 +477,7 @@ function Frame({
       className={`relative rounded-md outline-offset-4 transition ${on ? "z-20 outline outline-2 outline-indigo-500" : "hover:outline hover:outline-1 hover:outline-indigo-300"}`}
       onClick={(e) => {
         e.stopPropagation();
+        onFrameClick?.();
         select(id);
       }}
     >

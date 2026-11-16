@@ -51,7 +51,7 @@ function Hot({ onImage, k, children }: { onImage?: (key: string) => void; k: str
       }}
     >
       {children}
-      <span className="pointer-events-none absolute inset-0 hidden items-center justify-center rounded-xl bg-indigo-900/30 text-sm font-semibold text-white group-hover/img:flex">이미지 편집</span>
+      <span className="pointer-events-none absolute inset-0 hidden items-center justify-center rounded-xl bg-indigo-900/30 text-sm font-semibold text-white group-hover/img:flex">눌러서 이미지 선택</span>
     </div>
   );
 }

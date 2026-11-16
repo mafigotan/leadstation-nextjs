@@ -331,7 +331,7 @@ function BlockTools({ block: b, onChange, openImage }: { block: Block; onChange:
   switch (b.type) {
     case "hero":
     case "image":
-      return <ToolBtn label="이미지 변경" onClick={() => openImage("main")}>🖼 이미지 변경</ToolBtn>;
+      return <ToolBtn label="이미지 설정" onClick={() => openImage("main")}>⚙ 설정</ToolBtn>;
     case "button":
       return <ToolInput value={b.button_url} onChange={(v) => onChange({ button_url: v.trim() })} placeholder="링크 https://" width={220} />;
     case "cards":

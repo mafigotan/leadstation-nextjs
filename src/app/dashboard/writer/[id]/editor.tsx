@@ -103,7 +103,7 @@ function blockTools(
         </>
       );
     case "img":
-      return <ToolBtn label="이미지 변경" onClick={() => openImage("main")}>🖼 이미지 변경</ToolBtn>;
+      return <ToolBtn label="이미지 설정" onClick={() => openImage("main")}>⚙ 설정</ToolBtn>;
     case "thumbs":
       return (
         <>
