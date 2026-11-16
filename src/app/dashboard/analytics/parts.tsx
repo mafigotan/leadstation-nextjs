@@ -1,5 +1,6 @@
 import type { DailyPoint } from "@/lib/analytics/ga";
-import { deploymentLabel, gaChecks } from "@/lib/analytics/config";
+import { deploymentLabel, gaChecks, propertyId, serviceAccount } from "@/lib/analytics/config";
+import { accessibleProperties } from "@/lib/analytics/ga";
 
 export const fmt = (n: number) => n.toLocaleString("ko-KR");
 
@@ -72,15 +73,17 @@ export function NotConfigured() {
 }
 
 /** Which GA variables this deployment can see. Shown while something is missing, or with ?check=1. */
-export function GaStatusPanel({ force = false, error }: { force?: boolean; error?: string }) {
+export async function GaStatusPanel({ force = false, error }: { force?: boolean; error?: string }) {
   const checks = gaChecks();
   if (!force && !error && checks.every((c) => c.state === "ok")) return null;
+  const props = serviceAccount() ? await accessibleProperties() : null;
+  const pid = propertyId();
   const label = { ok: "정상", missing: "없음", invalid: "형식 오류" } as const;
   const cls = { ok: "bg-emerald-50 text-emerald-700", missing: "bg-slate-100 text-slate-600", invalid: "bg-rose-50 text-rose-700" } as const;
   return (
     <section className="card p-5">
       <h2 className="font-bold">GA 연결 상태</h2>
-      <p className="mt-1 text-xs text-slate-500">이 배포: {deploymentLabel()}</p>
+      <p className="mt-1 break-all text-xs text-slate-500">이 배포: {deploymentLabel()} · 확인 시각 {new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}</p>
       <ul className="mt-3 divide-y divide-slate-100 text-sm">
         {checks.map((c) => (
           <li key={c.name} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
@@ -90,6 +93,24 @@ export function GaStatusPanel({ force = false, error }: { force?: boolean; error
           </li>
         ))}
       </ul>
+      {props && (
+        <div className="mt-3 text-xs">
+          <p className="font-medium text-slate-700">서비스 계정이 볼 수 있는 GA4 속성</p>
+          {props.ok ? (
+            props.list.length ? (
+              <ul className="mt-1 space-y-0.5">
+                {props.list.map((p) => (
+                  <li key={p.id} className={p.id === pid ? "font-semibold text-emerald-700" : "text-slate-600"}>
+                    {p.id} · {p.name} ({p.account}){p.id === pid ? " ← 현재 설정값" : ""}
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="mt-1 text-rose-700">없음: GA4 속성 액세스 관리에 서비스 계정이 추가되지 않았어요.</p>
+          ) : (
+            <p className="mt-1 break-all text-slate-500">확인 불가 (Google Cloud에서 &quot;Google Analytics Admin API&quot;를 사용 설정하면 보여요): {props.message}</p>
+          )}
+        </div>
+      )}
       {error && <p className="mt-3 break-all rounded-lg bg-rose-50 p-3 text-xs text-rose-800">API 오류: {error}</p>}
     </section>
   );

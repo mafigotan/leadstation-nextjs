@@ -11,7 +11,7 @@ export function measurementId(): string | null {
 }
 
 export function propertyId(): string | null {
-  const v = clean(process.env.GA4_PROPERTY_ID).replace(/^properties\//, "");
+  const v = clean(process.env.GA_PROPERTY_ID || process.env.GA4_PROPERTY_ID).replace(/^properties\//, "");
   return /^\d{5,}$/.test(v) ? v : null;
 }
 
@@ -36,7 +36,7 @@ export type GaCheck = { name: string; state: CheckState; detail: string };
 /** Per-variable status for the setup panel. Shows only non-secret hints. */
 export function gaChecks(): GaCheck[] {
   const mRaw = clean(process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || process.env.GA_MEASUREMENT_ID);
-  const pRaw = clean(process.env.GA4_PROPERTY_ID);
+  const pRaw = clean(process.env.GA_PROPERTY_ID || process.env.GA4_PROPERTY_ID);
   const jRaw = clean(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
   const sa = serviceAccount();
   const mid = measurementId();
@@ -47,7 +47,7 @@ export function gaChecks(): GaCheck[] {
       detail: mid ? mid : mRaw ? `G-로 시작하는 측정 ID가 아니에요 (앞 4글자: ${mRaw.slice(0, 4)}…, 길이 ${mRaw.length})` : "이 배포에서 값이 보이지 않아요",
     },
     {
-      name: "GA4_PROPERTY_ID",
+      name: process.env.GA_PROPERTY_ID ? "GA_PROPERTY_ID" : "GA4_PROPERTY_ID",
       state: propertyId() ? "ok" : pRaw ? "invalid" : "missing",
       detail: propertyId() ? propertyId()! : pRaw ? `숫자 속성 ID가 아니에요 (앞 4글자: ${pRaw.slice(0, 4)}…)` : "이 배포에서 값이 보이지 않아요",
     },
@@ -63,5 +63,6 @@ export function deploymentLabel(): string {
   const env = process.env.VERCEL_ENV || process.env.NEXT_PUBLIC_VERCEL_ENV || "local";
   const ref = process.env.VERCEL_GIT_COMMIT_REF;
   const sha = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7);
-  return [env, ref, sha].filter(Boolean).join(" · ");
+  const url = process.env.VERCEL_URL;
+  return [env, ref, sha, url].filter(Boolean).join(" · ");
 }

@@ -241,3 +241,26 @@ export async function getRealtimeUsers(handle: string): Promise<number | null> {
     return null;
   }
 }
+
+export type AccessibleProperty = { id: string; name: string; account: string };
+
+/**
+ * Properties the service account can read (GA Admin API accountSummaries), for the setup panel.
+ * Needs "Google Analytics Admin API" enabled in the same Google Cloud project; otherwise returns the error text.
+ */
+export async function accessibleProperties(): Promise<{ ok: true; list: AccessibleProperty[] } | { ok: false; message: string }> {
+  try {
+    const res = await fetch("https://analyticsadmin.googleapis.com/v1beta/accountSummaries?pageSize=200", {
+      headers: { Authorization: `Bearer ${await accessToken()}` },
+      cache: "no-store",
+    });
+    if (!res.ok) return { ok: false, message: `${res.status} ${(await res.text()).slice(0, 200)}` };
+    const j = (await res.json()) as { accountSummaries?: { displayName: string; propertySummaries?: { property: string; displayName: string }[] }[] };
+    const list = (j.accountSummaries ?? []).flatMap((a) =>
+      (a.propertySummaries ?? []).map((p) => ({ id: p.property.replace(/^properties\//, ""), name: p.displayName, account: a.displayName })),
+    );
+    return { ok: true, list };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) };
+  }
+}
