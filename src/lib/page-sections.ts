@@ -33,6 +33,8 @@ export type Section = {
   items: SectionItem[];
   /** Lead form fields (form sections only). Empty means the legacy set. */
   fields?: LeadField[];
+  /** Lead form fields that must be filled in (form sections only). Missing means all but 기타. */
+  required?: LeadField[];
   /** Terms on the lead form (form sections only). Missing means the site's default terms. */
   terms?: FormTerm[];
   /** Show an "agree to all" checkbox above the terms (form sections only). */
@@ -105,6 +107,7 @@ export function sanitizeSections(input: unknown): Section[] {
         label: str(r.label, 60),
         url: url(r.url),
         ...(r.type === "form" && cleanFields(r.fields).length ? { fields: cleanFields(r.fields) } : {}),
+        ...(r.type === "form" && Array.isArray(r.required) ? { required: cleanFields(r.required) } : {}),
         ...(r.type === "form" && Array.isArray(r.terms) ? { terms: sanitizeFormTerms(r.terms), agree_all: r.agree_all === true } : {}),
         ...(r.type === "event" && sanitizeGame(r.game) ? { game: sanitizeGame(r.game) } : {}),
         items: Array.isArray(r.items)

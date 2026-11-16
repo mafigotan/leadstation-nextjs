@@ -23,8 +23,15 @@ export function cleanFields(input: unknown): LeadField[] {
   return LEAD_FIELD_KEYS.filter((k) => input.includes(k));
 }
 
-/** Fields of a form section: legacy forms (no list saved) ask for name, email, phone and message. */
-export function formFields(fields: LeadField[] | undefined): { fields: LeadField[]; required: LeadField[] } {
-  if (!fields?.length) return { fields: LEGACY_FIELDS, required: ["name", "email"] };
-  return { fields, required: fields.filter((f) => f !== "message") };
+/** Fields required unless the user chose otherwise: everything but 기타. */
+export const defaultRequired = (fields: LeadField[]) => fields.filter((f) => f !== "message");
+
+/**
+ * Fields of a form section and which of them must be filled in.
+ * Legacy forms (no list saved) ask for name, email, phone and message. Without a saved required list, all but 기타 are required.
+ */
+export function formFields(fields: LeadField[] | undefined, required?: LeadField[]): { fields: LeadField[]; required: LeadField[] } {
+  const list = fields?.length ? fields : LEGACY_FIELDS;
+  if (required) return { fields: list, required: list.filter((f) => required.includes(f)) };
+  return { fields: list, required: fields?.length ? defaultRequired(list) : ["name", "email"] };
 }

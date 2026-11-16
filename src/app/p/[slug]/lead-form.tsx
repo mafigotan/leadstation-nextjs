@@ -20,8 +20,8 @@ export function EventField({ value }: { value: string }) {
   );
 }
 
-export function LeadFormFields({ fields: chosen, disabled }: { fields?: LeadField[]; disabled?: boolean }) {
-  const { fields, required } = formFields(chosen);
+export function LeadFormFields({ fields: chosen, required: chosenRequired, disabled }: { fields?: LeadField[]; required?: LeadField[]; disabled?: boolean }) {
+  const { fields, required } = formFields(chosen, chosenRequired);
   const legacy = !chosen?.length;
   return (
     <>
@@ -121,6 +121,7 @@ export function LeadForm({
   pageId,
   sectionId,
   fields,
+  required,
   ctaLabel,
   theme,
   event,
@@ -130,6 +131,7 @@ export function LeadForm({
   pageId: string;
   sectionId?: string;
   fields?: LeadField[];
+  required?: LeadField[];
   ctaLabel: string;
   theme: Theme;
   event?: boolean;
@@ -172,7 +174,7 @@ export function LeadForm({
       }}
       className="space-y-4 rounded-xl border border-slate-200 p-6 shadow-sm">
       <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden />
-      <LeadFormFields fields={fields} />
+      <LeadFormFields fields={fields} required={required} />
       {event && <EventField value={eventResult} />}
       {terms.length ? (
         <TermsConsent terms={terms} agreeAll={agreeAll} accent={t.bg} />

@@ -7,7 +7,7 @@ import { THEMES, THEME_CLASSES, type PageContent, type Theme } from "@/lib/types
 import { SECTION_LABELS, emptySection, hasEvent, toSections, type Section, type SectionType } from "@/lib/page-sections";
 import { SectionView } from "@/components/promo-page";
 import { ImageMenu } from "@/components/image-field";
-import { LEAD_FIELDS, formFields, type LeadField } from "@/lib/lead-fields";
+import { LEAD_FIELDS, LEAD_FIELD_LABEL, formFields, type LeadField } from "@/lib/lead-fields";
 import { EventField, LeadFormFields } from "@/app/p/[slug]/lead-form";
 import { ToolBtn, ToolInput, VisualEditor, type PaletteItem } from "@/components/visual-editor";
 import type { TermOption } from "@/lib/terms";
@@ -29,11 +29,11 @@ const PALETTE: PaletteItem[] = [
   { type: "divider", label: SECTION_LABELS.divider, icon: "—" },
 ];
 
-function MockForm({ label, theme, fields, event, terms, agreeAll }: { label: string; theme: Theme; fields?: LeadField[]; event: boolean; terms: ReturnType<typeof previewTerms>; agreeAll: boolean }) {
+function MockForm({ label, theme, fields, required, event, terms, agreeAll }: { label: string; theme: Theme; fields?: LeadField[]; required?: LeadField[]; event: boolean; terms: ReturnType<typeof previewTerms>; agreeAll: boolean }) {
   const t = THEME_CLASSES[theme] ?? THEME_CLASSES.indigo;
   return (
     <div className="pointer-events-none space-y-4 rounded-xl border border-slate-200 p-6 shadow-sm">
-      <LeadFormFields fields={fields} disabled />
+      <LeadFormFields fields={fields} required={required} disabled />
       {event && <EventField value="" />}
       {terms.length > 0 && (
         <div className="space-y-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600">
@@ -48,6 +48,51 @@ function MockForm({ label, theme, fields, event, terms, agreeAll }: { label: str
       )}
       <div className={`rounded-lg py-2.5 text-center text-sm font-semibold text-white ${t.bg}`}>{label || "신청하기"}</div>
       <p className="text-center text-xs text-slate-400">편집 화면에서는 입력할 수 없어요.</p>
+    </div>
+  );
+}
+
+/** Which fields the form asks for, and which of them must be filled in. */
+function FieldSettings({ s, update }: { s: Section; update: (p: Partial<Section>) => void }) {
+  const { fields, required } = formFields(s.fields, s.required);
+  const order = (list: LeadField[]) => LEAD_FIELDS.map((f) => f.key).filter((k) => list.includes(k));
+  const set = (nextFields: LeadField[], nextRequired: LeadField[]) => {
+    if (!nextFields.length) return;
+    update({ fields: order(nextFields), required: order(nextRequired.filter((f) => nextFields.includes(f))) });
+  };
+  return (
+    <div className="space-y-3 text-sm">
+      <p className="text-slate-600">신청 폼에 넣을 필드와 꼭 입력해야 하는 필드를 정해요. 필수가 아닌 필드는 비워도 신청할 수 있어요.</p>
+      <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+        {LEAD_FIELDS.map((f) => {
+          const on = fields.includes(f.key);
+          const req = required.includes(f.key);
+          return (
+            <div key={f.key} className="flex items-center justify-between gap-3 px-3 py-2">
+              <label className="flex min-h-9 items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={on}
+                  disabled={on && fields.length === 1}
+                  onChange={(e) =>
+                    set(e.target.checked ? [...fields, f.key] : fields.filter((x) => x !== f.key), e.target.checked && f.key !== "message" ? [...required, f.key] : required)
+                  }
+                />
+                {f.label}
+              </label>
+              {on && (
+                <div className="flex overflow-hidden rounded-md border border-slate-300 text-xs">
+                  <button type="button" className={`px-3 py-1.5 ${req ? "bg-slate-900 text-white" : "bg-white"}`} onClick={() => set(fields, [...required, f.key])}>필수</button>
+                  <button type="button" className={`px-3 py-1.5 ${!req ? "bg-slate-900 text-white" : "bg-white"}`} onClick={() => set(fields, required.filter((x) => x !== f.key))}>선택</button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {!required.length && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">필수 필드가 없어요. 신청자는 필드 하나 이상만 채우면 신청할 수 있어요.</p>}
+      {required.length > 0 && <p className="text-xs text-slate-500">필수: {required.map((f) => LEAD_FIELD_LABEL[f]).join(", ")}</p>}
+      <p className="text-xs text-slate-500">저장해야 페이지에 반영돼요.</p>
     </div>
   );
 }
@@ -76,10 +121,13 @@ function SectionTools({ s, update, openImage, termOptions }: { s: Section; updat
     case "event":
       return <ToolBtn label="이벤트 템플릿 고르기" onClick={() => openImage("game")}>🎮 {s.game ? "템플릿 바꾸기" : "템플릿 고르기"}</ToolBtn>;
     case "form": {
-      const current = formFields(s.fields).fields;
+      const { fields: current, required } = formFields(s.fields, s.required);
       const toggle = (k: LeadField) => {
         const next = current.includes(k) ? current.filter((f) => f !== k) : [...current, k];
-        if (next.length) update({ fields: LEAD_FIELDS.map((f) => f.key).filter((f) => next.includes(f)) });
+        if (!next.length) return;
+        // A field added from the toolbar is required unless it is 기타.
+        const req = next.filter((f) => (f === k ? k !== "message" : required.includes(f)));
+        update({ fields: LEAD_FIELDS.map((f) => f.key).filter((f) => next.includes(f)), required: req });
       };
       return (
         <>
@@ -90,6 +138,9 @@ function SectionTools({ s, update, openImage, termOptions }: { s: Section; updat
             </ToolBtn>
           ))}
           <span className="ml-1 text-xs text-slate-400">|</span>
+          <ToolBtn label="필드별 필수 입력 설정" onClick={() => openImage("fields")}>
+            ✱ 필수 {required.length}/{current.length}
+          </ToolBtn>
           <ToolBtn label="신청 폼 약관 설정" danger={!!termsProblem(s, termOptions)} onClick={() => openImage("terms")}>
             📄 약관 {formTermsOf(s, termOptions).length}{termsProblem(s, termOptions) ? " ⚠" : ""}
           </ToolBtn>
@@ -399,13 +450,13 @@ export function PageEditor({
         canvasClassName="card bg-white pb-6"
         canDuplicate={(s) => s.type !== "form"}
         canAdd={(type) => (type === "form" && sections.some((s) => s.type === "form") ? "신청 폼은 프로모션에 하나만 넣을 수 있어요." : null)}
-        modalTitle={(key) => (key === "game" ? "이벤트 템플릿 고르기" : key === "terms" ? "신청 폼 약관" : "이미지")}
+        modalTitle={(key) => (key === "game" ? "이벤트 템플릿 고르기" : key === "terms" ? "신청 폼 약관" : key === "fields" ? "신청 폼 필드" : "이미지")}
         renderBlock={(s, _i, { onImage, ed }) => (
-          <SectionView s={s} theme={t} ed={ed} onImage={onImage} form={<MockForm label={s.label || formLabel} theme={theme} fields={s.fields} event={hasEvent(sections)} terms={previewTerms(s, termOptions)} agreeAll={!!s.terms && !!s.agree_all} />} />
+          <SectionView s={s} theme={t} ed={ed} onImage={onImage} form={<MockForm label={s.label || formLabel} theme={theme} fields={s.fields} required={s.required} event={hasEvent(sections)} terms={previewTerms(s, termOptions)} agreeAll={!!s.terms && !!s.agree_all} />} />
         )}
         renderTools={(s, update, openImage) => <SectionTools s={s} update={update} openImage={openImage} termOptions={termOptions} />}
         renderImage={(s, key, update, close) =>
-          key === "terms" ? <TermsPicker s={s} update={update} options={termOptions} /> : key === "game" ? <GameMaker s={s} update={update} close={close} context={[title, content.subheadline].filter(Boolean).join("\n")} /> : <SectionImage s={s} k={key} update={update} userId={userId} />
+          key === "fields" ? <FieldSettings s={s} update={update} /> : key === "terms" ? <TermsPicker s={s} update={update} options={termOptions} /> : key === "game" ? <GameMaker s={s} update={update} close={close} context={[title, content.subheadline].filter(Boolean).join("\n")} /> : <SectionImage s={s} k={key} update={update} userId={userId} />
         }
       />
       <p className="mt-3 text-center text-xs text-slate-400">글자를 누르면 바로 고칠 수 있어요. 요소를 누르면 위쪽에 메뉴가, 이미지를 누르면 이미지 창이 열려요. Ctrl+S로 저장해요.</p>

@@ -29,13 +29,14 @@ export async function createPage(_: FormState, formData: FormData): Promise<Form
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "입력값을 확인해 주세요." };
   const withForm = formData.get("lead_form") !== "off";
   const leadFields = withForm ? cleanFields(formData.getAll("lead_fields")) : [];
+  const leadRequired = cleanFields(formData.getAll("lead_required")).filter((f) => leadFields.includes(f));
   if (withForm && !leadFields.length) return { error: "신청 폼에 넣을 필드를 하나 이상 선택해 주세요." };
   const brief = { ...parsed.data, lead_fields: leadFields };
 
   let content: PageContent;
   try {
     const generated = await metered(supabase, site.id, ["text"], () => generatePageContent(brief));
-    const sections = toSections(generated).flatMap((s) => (s.type !== "form" ? [s] : withForm ? [{ ...s, fields: leadFields }] : []));
+    const sections = toSections(generated).flatMap((s) => (s.type !== "form" ? [s] : withForm ? [{ ...s, fields: leadFields, required: leadRequired }] : []));
     content = withSections(generated, sections);
   } catch (e) {
     console.error("generatePageContent failed", e);

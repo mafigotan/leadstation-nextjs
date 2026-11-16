@@ -53,6 +53,7 @@ export default async function UserPromoPage({ params }: Params) {
             pageId={page.id}
             sectionId={s?.id}
             fields={s?.fields}
+            required={s?.required}
             event={hasEvent(sections)}
             ctaLabel={s?.label || page.content.cta_label}
             theme={page.content.theme}

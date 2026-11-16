@@ -31,7 +31,7 @@ export async function submitLead(pageId: string, sectionId: string, _: LeadState
   const sections = toSections(page.content);
   const forms = sections.filter((s) => s.type === "form");
   const section = forms.find((s) => s.id === sectionId) ?? forms[0];
-  const { fields, required } = formFields(section?.fields);
+  const { fields, required } = formFields(section?.fields, section?.required);
 
   // The terms this form shows now. Without any (database not migrated yet), the old fixed checkboxes apply.
   const terms = await resolveFormTerms(supabase, page.site_id, section);
