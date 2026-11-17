@@ -114,7 +114,7 @@ export const DEFAULT_APPLICANT_MAIL: ApplicantMail = {
   enabled: true,
   subject: "[{사이트명}] {프로모션명} 신청해 주셔서 감사합니다",
   heading: "{이름}님, 신청해 주셔서 감사합니다.",
-  body: "{프로모션명}에 보내주신 신청이 정상적으로 접수되었습니다.\n관심 가져 주셔서 진심으로 감사드리며, 담당자가 확인 후 빠르게 안내해 드리겠습니다.",
+  body: "{프로모션명}에 보내주신 신청이 정상적으로 접수되었습니다.\n프로모션에 참여해주셔서 감사드립니다.\n신청하신 내역은 아래와 같으니 참고 바랍니다.",
 };
 
 export function sanitizeApplicantMail(input: unknown): ApplicantMail | undefined {
