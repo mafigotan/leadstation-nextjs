@@ -1,11 +1,14 @@
 "use server";
 
+import { after } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { GENDERS, LEAD_FIELD_LABEL, formFields, type LeadField } from "@/lib/lead-fields";
 import { hasEvent, toSections } from "@/lib/page-sections";
 import type { PageContent } from "@/lib/types";
 import { resolveFormTerms } from "@/lib/terms";
+import { sendLeadNotifications } from "@/lib/lead-notify";
+import { PUBLIC_SITE_COLUMNS, type PublicSite } from "@/lib/user-site";
 
 const FIELD_SCHEMA: Record<LeadField, z.ZodType<unknown>> = {
   name: z.string().max(100, "이름이 너무 길어요."),
@@ -26,7 +29,7 @@ export async function submitLead(pageId: string, sectionId: string, _: LeadState
 
   const supabase = await createClient();
   // The page's own form decides which fields are accepted and required.
-  const { data: page } = await supabase.from("pages").select("site_id, content").eq("id", pageId).maybeSingle<{ site_id: string; content: PageContent }>();
+  const { data: page } = await supabase.from("pages").select("site_id, title, slug, content").eq("id", pageId).maybeSingle<{ site_id: string; title: string; slug: string; content: PageContent }>();
   if (!page) return { error: "공개된 페이지에서만 신청할 수 있어요." };
   const sections = toSections(page.content);
   const forms = sections.filter((s) => s.type === "form");
@@ -73,6 +76,22 @@ export async function submitLead(pageId: string, sectionId: string, _: LeadState
   if (error) {
     console.error("insert lead failed", error);
     return { error: "신청을 저장하지 못했어요. 잠시 후 다시 시도해 주세요." };
+  }
+
+  // Notify the site admins and thank the applicant, after the response is sent.
+  const { data: site } = await supabase.from("sites").select(PUBLIC_SITE_COLUMNS).eq("id", page.site_id).maybeSingle<PublicSite>();
+  if (site) {
+    const notice = {
+      pageId,
+      site,
+      pageTitle: page.title || page.content?.headline || "프로모션",
+      pageSlug: page.slug,
+      fields,
+      row,
+      terms: terms.map((t) => ({ label: t.label, required: t.required, agreed: agreed(t.version_id) })),
+      marketing,
+    };
+    after(() => sendLeadNotifications(notice));
   }
   return { done: true };
 }
