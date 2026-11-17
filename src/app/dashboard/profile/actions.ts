@@ -24,16 +24,38 @@ export async function saveMyInfo(_: FormState, formData: FormData): Promise<Form
 export async function saveSite(_: FormState, formData: FormData): Promise<FormState> {
   const { supabase, site } = await requireSiteAdmin().catch(() => ({ supabase: null, site: null }));
   if (!supabase || !site) return { error: "사이트 관리자만 바꿀 수 있어요." };
-  const handle = String(formData.get("handle") ?? "").trim().toLowerCase();
   const name = String(formData.get("name") ?? "").trim().slice(0, 100);
+  const { error } = await supabase.from("sites").update({ name }).eq("id", site.id);
+  if (error) return { error: "저장하지 못했어요." };
+  return done("사이트 이름을 저장했어요.");
+}
+
+/** Site admins cannot change the address themselves: they ask the super admins. */
+export async function requestHandleChange(_: FormState, formData: FormData): Promise<FormState> {
+  const { supabase, site } = await requireSiteAdmin().catch(() => ({ supabase: null, site: null }));
+  if (!supabase || !site) return { error: "사이트 관리자만 주소 변경을 요청할 수 있어요." };
+  const handle = String(formData.get("handle") ?? "").trim().toLowerCase();
+  const reason = String(formData.get("reason") ?? "").trim().slice(0, 1000);
+  if (handle === site.handle) return { error: "지금 쓰고 있는 주소예요. 바꿀 주소를 입력해주세요." };
   const invalid = validateHandle(handle);
   if (invalid) return { error: invalid };
-  const { error } = await supabase.from("sites").update({ handle, name }).eq("id", site.id);
+  const { error } = await supabase.rpc("request_site_handle_change", { p_new_handle: handle, p_reason: reason });
   if (error) {
     if (error.code === "23505") return { error: "이미 다른 사람이 쓰고 있는 사이트 주소예요." };
-    return { error: "저장하지 못했어요." };
+    if (error.code === "P0005") return { error: "이미 처리 중인 주소 변경 요청이 있어요." };
+    if (error.code === "P0006") return { error: "지금 쓰고 있는 주소예요." };
+    if (error.code === "P0007") return { error: "사용할 수 없는 주소예요." };
+    console.error("handle request failed", error);
+    return { error: "요청하지 못했어요. 잠시 후 다시 시도해주세요." };
   }
-  return done("사이트 정보를 저장했어요.");
+  return done("주소 변경을 요청했어요. 운영팀이 확인 후 바꿔드릴게요.");
+}
+
+export async function cancelHandleRequest(id: string): Promise<FormState> {
+  const { supabase } = await requireSiteAdmin();
+  const { error } = await supabase.rpc("cancel_site_handle_request", { p_id: id });
+  if (error) return { error: "취소하지 못했어요." };
+  return done("주소 변경 요청을 취소했어요.");
 }
 
 export type SiteInfo = {

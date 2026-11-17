@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSuperAdmin } from "@/lib/supabase/server";
-import { todayKst, userUrl } from "@/lib/site";
+import { rootDomain, siteUrl, todayKst, userUrl } from "@/lib/site";
 import { METHOD_LABEL, SiteStatus, Table, Th, UserStatus, fmtDate, won } from "../../ui";
 import { deletePayment } from "../../actions";
 import { PaymentForm, SiteAdminForm } from "./forms";
 import { loadUsage } from "@/lib/usage";
 import { LimitRequestTable } from "../../limit-requests";
+import { HandleStatusBadge, PendingHandleRequest, SiteHandleForm, type HandleRequest } from "../../handle-requests";
 
 type Site = {
   id: string; handle: string; name: string; status: string; active_from: string | null; active_until: string | null;
@@ -23,14 +24,17 @@ export default async function AdminSite({ params }: { params: Promise<{ id: stri
     .eq("id", id)
     .maybeSingle<Site>();
   if (!site) notFound();
-  const [{ data: memo }, { data: members }, { data: payments }, { count: activityCount }, usage, { data: requests }] = await Promise.all([
+  const [{ data: memo }, { data: members }, { data: payments }, { count: activityCount }, usage, { data: requests }, { data: handleReqs }] = await Promise.all([
     supabase.rpc("admin_site_memo", { p_site: id }),
     supabase.rpc("admin_site_members", { p_site: id }),
     supabase.from("site_payments").select("id, paid_on, amount, method, period_from, period_to, payer, memo").eq("site_id", id).order("paid_on", { ascending: false }),
     supabase.from("activity_logs").select("id", { count: "exact", head: true }).eq("site_id", id),
     loadUsage(supabase, id),
     supabase.from("limit_requests").select("id, kinds, message, status, created_at").eq("site_id", id).order("created_at", { ascending: false }).limit(10),
+    supabase.from("site_handle_requests").select("id, site_id, current_handle, new_handle, reason, status, admin_note, created_at, handled_at").eq("site_id", id).order("created_at", { ascending: false }).limit(10),
   ]);
+  const handleRequests = (handleReqs ?? []) as HandleRequest[];
+  const pendingHandle = handleRequests.find((r) => r.status === "pending");
   const total = (payments ?? []).reduce((s, p) => s + Number(p.amount), 0);
 
   return (
@@ -55,6 +59,30 @@ export default async function AdminSite({ params }: { params: Promise<{ id: stri
           <PaymentForm siteId={site.id} today={todayKst()} />
         </section>
       </div>
+
+      <section className="space-y-3">
+        <h2 className="font-bold">
+          사이트 주소
+          {pendingHandle && <span className="ml-2 rounded-full bg-red-600 px-2 py-0.5 text-xs text-white">변경 요청 1</span>}
+        </h2>
+        {pendingHandle && <PendingHandleRequest request={pendingHandle} />}
+        <div className="card p-5">
+          <SiteHandleForm siteId={site.id} handle={site.handle} rootDomain={rootDomain() ?? siteUrl().replace(/^https?:\/\//, "") + "/s"} />
+        </div>
+        {handleRequests.some((r) => r.status !== "pending") && (
+          <Table head={<><Th>상태</Th><Th>요청 주소</Th><Th>요청 사유</Th><Th>답변</Th><Th>요청 시각</Th></>}>
+            {handleRequests.filter((r) => r.status !== "pending").map((r) => (
+              <tr key={r.id} className="align-top">
+                <td className="px-3 py-2"><HandleStatusBadge status={r.status} /></td>
+                <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{r.current_handle} → {r.new_handle}</td>
+                <td className="max-w-xs px-3 py-2 text-slate-600">{r.reason || "-"}</td>
+                <td className="max-w-xs px-3 py-2 text-slate-500">{r.admin_note || "-"}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-slate-500">{fmtDate(r.created_at)}</td>
+              </tr>
+            ))}
+          </Table>
+        )}
+      </section>
 
       {!!requests?.length && (
         <section className="space-y-2">

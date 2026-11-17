@@ -9,11 +9,13 @@ export function HandleInput({
   rootDomain,
   currentSiteId,
   notice = "사이트가 생성돼요",
+  label = "내 사이트 주소",
 }: {
   initial?: string;
   rootDomain: string;
   currentSiteId?: string;
   notice?: string;
+  label?: string;
 }) {
   const [handle, setHandle] = useState(initial);
   const [check, setCheck] = useState<{ ok: boolean; message: string; for: string } | null>(null);
@@ -36,7 +38,7 @@ export function HandleInput({
 
   return (
     <div>
-      <label className="label" htmlFor="handle">내 사이트 주소</label>
+      <label className="label" htmlFor="handle">{label}</label>
       <div className="flex items-center rounded-lg border border-slate-300 bg-white shadow-sm focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/30">
         <span className="pl-3 text-sm text-slate-400">https://</span>
         <input

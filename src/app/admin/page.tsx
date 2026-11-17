@@ -3,6 +3,7 @@ import { requireSuperAdmin } from "@/lib/supabase/server";
 import { todayKst } from "@/lib/site";
 import { Table, Th, fmtDate, fmtDateTime, won } from "./ui";
 import { LimitRequestTable, type LimitRequest } from "./limit-requests";
+import { PendingHandleRequest, type HandleRequest } from "./handle-requests";
 
 function addDays(d: string, n: number) {
   const t = new Date(d + "T00:00:00Z");
@@ -23,7 +24,7 @@ export default async function AdminHome() {
   const { supabase } = await requireSuperAdmin();
   const today = todayKst();
   const month = today.slice(0, 7);
-  const [users, suspended, sites, inactive, expired, expiring, pays, requests, tplReqs, tplPending] = await Promise.all([
+  const [users, suspended, sites, inactive, expired, expiring, pays, requests, tplReqs, tplPending, handleReqs] = await Promise.all([
     supabase.rpc("admin_user_list", { p_query: "", p_status: "all", p_limit: 1, p_offset: 0 }),
     supabase.rpc("admin_user_list", { p_query: "", p_status: "suspended", p_limit: 1, p_offset: 0 }),
     supabase.from("sites").select("id", { count: "exact", head: true }),
@@ -34,7 +35,9 @@ export default async function AdminHome() {
     supabase.from("limit_requests").select("id, site_id, kinds, message, status, created_at, sites(handle, name)").eq("status", "pending").order("created_at", { ascending: false }),
     supabase.from("event_template_requests").select("id, site_id, game_type, description, status, admin_note, created_at, sites(handle, name)").order("created_at", { ascending: false }).limit(10),
     supabase.from("event_template_requests").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    supabase.from("site_handle_requests").select("id, site_id, current_handle, new_handle, reason, status, admin_note, created_at, handled_at, sites(handle, name)").eq("status", "pending").order("created_at"),
   ]);
+  const handleRequests = (handleReqs.data ?? []) as unknown as HandleRequest[];
   const templateRequests = (tplReqs.data ?? []) as unknown as TemplateReq[];
   const total = (r: { data: unknown }) => ((r.data as { total: number }[] | null)?.[0]?.total ?? 0);
   const monthTotal = (pays.data ?? []).reduce((s, p) => s + Number(p.amount), 0);
@@ -59,6 +62,13 @@ export default async function AdminHome() {
           </Link>
         ))}
       </div>
+      {!!handleRequests.length && (
+        <section className="space-y-2">
+          <h2 className="font-bold">사이트 주소 변경 요청 <span className="ml-1 rounded-full bg-red-600 px-2 py-0.5 text-xs text-white">{handleRequests.length}</span></h2>
+          <p className="text-sm text-slate-500">변경하면 요청한 유저의 대시보드에 알림이 가요.</p>
+          {handleRequests.map((r) => <PendingHandleRequest key={r.id} request={r} showSite />)}
+        </section>
+      )}
       {!!requests.data?.length && (
         <section className="space-y-2">
           <h2 className="font-bold">처리할 이용 한도 증설 요청 <span className="ml-1 rounded-full bg-red-600 px-2 py-0.5 text-xs text-white">{requests.data.length}</span></h2>

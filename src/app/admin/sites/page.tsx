@@ -41,6 +41,10 @@ export default async function AdminSites({ searchParams }: { searchParams: Promi
   const { data: pays } = ids.length
     ? await supabase.from("site_payments").select("site_id, paid_on, amount").in("site_id", ids).order("paid_on", { ascending: false })
     : { data: [] };
+  const { data: handleReqs } = ids.length
+    ? await supabase.from("site_handle_requests").select("site_id").in("site_id", ids).eq("status", "pending")
+    : { data: [] };
+  const handlePending = new Set((handleReqs ?? []).map((r) => r.site_id));
   const lastPay = new Map<string, { paid_on: string; amount: number }>();
   for (const p of pays ?? []) if (!lastPay.has(p.site_id)) lastPay.set(p.site_id, p);
 
@@ -68,6 +72,7 @@ export default async function AdminSites({ searchParams }: { searchParams: Promi
               <td className="px-3 py-2">
                 <Link href={`/admin/sites/${r.id}`} className="font-medium text-indigo-600 hover:underline">{r.name || r.handle}</Link>
                 <a href={userUrl(r.handle)} target="_blank" className="block text-xs text-slate-400 hover:underline">{r.handle}</a>
+                {handlePending.has(r.id) && <Link href={`/admin/sites/${r.id}`} className="mt-0.5 inline-block rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">주소 변경 요청</Link>}
               </td>
               <td className="px-3 py-2"><SiteStatus site={r} /></td>
               <td className="whitespace-nowrap px-3 py-2">{fmtDate(r.service_started_on)}</td>

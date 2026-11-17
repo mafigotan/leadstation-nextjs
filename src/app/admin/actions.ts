@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSuperAdmin } from "@/lib/supabase/server";
+import { validateHandle } from "@/lib/site";
 
 export type AdminState = { error?: string; ok?: boolean; message?: string };
 
@@ -105,4 +106,36 @@ export async function closeLimitRequest(id: string) {
   const { supabase } = await requireSuperAdmin();
   await supabase.from("limit_requests").update({ status: "done", handled_at: new Date().toISOString() }).eq("id", id);
   revalidatePath("/admin", "layout");
+}
+
+const HANDLE_ERRORS: Record<string, string> = {
+  "23505": "이미 다른 사이트가 쓰고 있는 주소예요.",
+  P0007: "사용할 수 없는 주소예요. 영문 소문자, 숫자, 하이픈(-)으로 3~30자예요.",
+};
+
+/** Changes a site's address. Closes the site's open change request and notifies the requester. */
+export async function setSiteHandle(siteId: string, _: AdminState, formData: FormData): Promise<AdminState> {
+  const { supabase } = await requireSuperAdmin();
+  const handle = String(formData.get("handle") ?? "").trim().toLowerCase();
+  const invalid = validateHandle(handle);
+  if (invalid) return { error: invalid };
+  const { error } = await supabase.rpc("admin_set_site_handle", {
+    p_site: siteId,
+    p_handle: handle,
+    p_note: String(formData.get("note") ?? "").trim().slice(0, 1000),
+  });
+  if (error) return { error: HANDLE_ERRORS[error.code] ?? "바꾸지 못했어요: " + error.message };
+  revalidatePath("/", "layout");
+  return { ok: true, message: `사이트 주소를 ${handle} 로 바꿨어요.` };
+}
+
+export async function rejectHandleRequest(id: string, _: AdminState, formData: FormData): Promise<AdminState> {
+  const { supabase } = await requireSuperAdmin();
+  const { error } = await supabase.rpc("reject_site_handle_request", {
+    p_id: id,
+    p_note: String(formData.get("note") ?? "").trim().slice(0, 1000),
+  });
+  if (error) return { error: "처리하지 못했어요: " + error.message };
+  revalidatePath("/admin", "layout");
+  return { ok: true, message: "요청을 반려했어요." };
 }

@@ -1,18 +1,21 @@
 import { requireSite } from "@/lib/supabase/server";
 import { daysLeft, endsWithinTwoMonths, rootDomain, siteUrl, userUrl } from "@/lib/site";
-import { MyInfoForm, SiteForm, SiteInfoForm, MembersPanel, SiteSwitcher, type Member, type Invite } from "./forms";
+import { HandleRequestPanel, MyInfoForm, SiteForm, SiteInfoForm, MembersPanel, SiteSwitcher, type HandleRequest, type Member, type Invite } from "./forms";
 import type { SiteInfo } from "./actions";
 
 export const metadata = { title: "마이 프로필 | LEADstation" };
 
 export default async function ProfilePage() {
   const { supabase, user, profile, site, role, memberships } = await requireSite();
-  const [{ data: members }, { data: invites }] = await Promise.all([
+  const [{ data: members }, { data: invites }, { data: handleRequest }] = await Promise.all([
     supabase.rpc("site_member_list", { p_site: site.id }),
     role === "admin"
       ? supabase.from("site_invites").select("id, email, role, created_at").eq("site_id", site.id).order("created_at")
       : Promise.resolve({ data: [] }),
+    supabase.from("site_handle_requests").select("id, current_handle, new_handle, reason, status, admin_note, created_at, handled_at")
+      .eq("site_id", site.id).neq("status", "canceled").order("created_at", { ascending: false }).limit(1).maybeSingle<HandleRequest>(),
   ]);
+  const root = rootDomain() ?? siteUrl().replace(/^https?:\/\//, "") + "/s";
   const isAdmin = role === "admin";
   const { data: siteInfo } = isAdmin
     ? await supabase.from("sites").select("logo_url, company_name, ceo_name, business_no, address, contact_phone, contact_email").eq("id", site.id).maybeSingle<SiteInfo>()
@@ -47,12 +50,15 @@ export default async function ProfilePage() {
           </span>
         </div>
         <a href={userUrl(site.handle)} target="_blank" className="text-sm font-medium text-indigo-600 hover:underline">{userUrl(site.handle)}</a>
+        <div className="mt-4">
+          <HandleRequestPanel site={site} rootDomain={root} isAdmin={isAdmin} latest={handleRequest ?? null} />
+        </div>
         {isAdmin ? (
-          <div className="mt-4">
-            <SiteForm site={site} rootDomain={rootDomain() ?? siteUrl().replace(/^https?:\/\//, "") + "/s"} />
+          <div className="mt-6 border-t border-slate-100 pt-4">
+            <SiteForm site={site} />
           </div>
         ) : (
-          <p className="mt-2 text-sm text-slate-500">사이트 이름: {site.name || "-"} · 사이트 주소는 관리자만 바꿀 수 있어요.</p>
+          <p className="mt-4 text-sm text-slate-500">사이트 이름: {site.name || "-"}</p>
         )}
       </section>
 
@@ -108,7 +114,7 @@ export default async function ProfilePage() {
       <section className="card p-6">
         <h2 className="font-bold">사이트 멤버</h2>
         <p className="mb-4 mt-1 text-sm text-slate-500">
-          관리자와 사용자 모두 이 사이트의 프로모션 페이지, 리드, 글, 뉴스레터, 이미지를 함께 관리해요. 관리자는 사이트 주소와 멤버를 관리할 수 있어요.
+          관리자와 사용자 모두 이 사이트의 프로모션 페이지, 리드, 글, 뉴스레터, 이미지를 함께 관리해요. 관리자는 사이트 이름과 멤버를 관리하고, 사이트 주소 변경을 요청할 수 있어요.
         </p>
         <MembersPanel
           me={user.id}
