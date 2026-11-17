@@ -3,6 +3,32 @@
 import { useEffect, useState } from "react";
 import { checkHandle } from "@/app/welcome/actions";
 
+// Hangul typed with the Korean keyboard layout (두벌식) mapped back to the English keys that were pressed,
+// so "ㅁㅠㅊ" or "뮻" becomes "abc" instead of being dropped.
+const JAMO_KEYS =
+  "r,R,rt,s,sw,sg,e,E,f,fr,fa,fq,ft,fx,fv,fg,a,q,Q,qt,t,T,d,w,W,c,z,x,v,g," +
+  "k,o,i,O,j,p,u,P,h,hk,ho,hl,y,n,nj,np,nl,b,m,ml,l";
+const JAMO = JAMO_KEYS.split(","); // U+3131 ㄱ … U+3163 ㅣ
+const INITIAL = "r,R,s,e,E,f,a,q,Q,t,T,d,w,W,c,z,x,v,g".split(",");
+const MEDIAL = JAMO.slice(30);
+const FINAL = ",r,R,rt,s,sw,sg,e,f,fr,fa,fq,ft,fx,fv,fg,a,q,qt,t,T,d,w,c,z,x,v,g".split(",");
+
+function hangulToKeys(text: string): string {
+  let out = "";
+  for (const ch of text) {
+    const c = ch.charCodeAt(0);
+    if (c >= 0xac00 && c <= 0xd7a3) {
+      const i = c - 0xac00;
+      out += INITIAL[Math.floor(i / 588)] + MEDIAL[Math.floor((i % 588) / 28)] + FINAL[i % 28];
+    } else if (c >= 0x3131 && c <= 0x3163) {
+      out += JAMO[c - 0x3131];
+    } else out += ch;
+  }
+  return out;
+}
+
+const HANGUL_RE = /[\u3131-\u3163\uac00-\ud7a3]/;
+
 /** Site address field with a live duplicate check and a notice of the address that will be created. */
 export function HandleInput({
   initial = "",
@@ -18,6 +44,7 @@ export function HandleInput({
   label?: string;
 }) {
   const [handle, setHandle] = useState(initial);
+  const [korean, setKorean] = useState(false);
   const [check, setCheck] = useState<{ ok: boolean; message: string; for: string } | null>(null);
 
   useEffect(() => {
@@ -46,7 +73,16 @@ export function HandleInput({
           name="handle"
           required
           value={handle}
-          onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+          onChange={(e) => {
+            const raw = e.target.value;
+            setKorean(HANGUL_RE.test(raw));
+            setHandle(hangulToKeys(raw).toLowerCase().replace(/[^a-z0-9-]/g, ""));
+          }}
+          lang="en"
+          inputMode="url"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
           maxLength={30}
           autoComplete="off"
           className="min-w-0 flex-1 border-0 bg-transparent px-1 py-2 text-right text-sm font-semibold focus:outline-none"
@@ -55,6 +91,7 @@ export function HandleInput({
         <span className="pr-3 text-sm text-slate-500">.{rootDomain}</span>
       </div>
       <p className="mt-1 text-xs text-slate-500">영문 소문자, 숫자, 하이픈(-) 3~30자.</p>
+      {korean && <p className="mt-1 text-xs text-amber-700">한글 자판으로 입력돼서 영문으로 바꿔 넣었어요. 한/영 키를 눌러 영문으로 바꿔주세요.</p>}
       <div className={`mt-2 rounded-lg p-3 text-sm ${result && !result.ok ? "bg-red-50 text-red-700" : "bg-indigo-50 text-indigo-800"}`}>
         <p>
           <span className="font-semibold">{address}</span> {notice}
