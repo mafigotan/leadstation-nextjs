@@ -4,11 +4,14 @@ import { requireSuperAdmin } from "@/lib/supabase/server";
 import { fmtDateTime } from "../../ui";
 import { TemplateStatus, isRevising } from "../status";
 import { JobWatcher, DeleteButton, EditForm, GamePreview, PublicToggle, ReviseForm } from "../forms";
+import { FieldsEditor } from "../fields-editor";
+import { sanitizeFields } from "@/lib/event-fields";
 
 export const metadata = { title: "이벤트 템플릿 | 슈퍼 관리자" };
 
-export default async function EventTemplate({ params }: { params: Promise<{ id: string }> }) {
+export default async function EventTemplate({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   const { id } = await params;
+  const tab = (await searchParams).tab === "fields" ? "fields" : "game";
   const { supabase } = await requireSuperAdmin();
   const { data: t } = await supabase.from("event_templates").select("*").eq("id", id).maybeSingle();
   if (!t) notFound();
@@ -36,7 +39,19 @@ export default async function EventTemplate({ params }: { params: Promise<{ id: 
       {stopped && <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">이전 방식으로 시작된 작업이 서버 시간 제한(5분)에 걸려 중단됐어요. 오른쪽에서 다시 만들어 주세요.</p>}
       {t.error && <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{t.error}</p>}
 
-      {generating ? (
+      {ready && (
+        <nav className="flex gap-1 border-b border-slate-200 text-sm">
+          {[["game", "게임과 설정"], ["fields", "수정 가능 항목"]].map(([k, label]) => (
+            <Link key={k} href={`/admin/event-templates/${t.id}${k === "game" ? "" : `?tab=${k}`}`} className={`-mb-px border-b-2 px-4 py-2 ${tab === k ? "border-slate-900 font-semibold text-slate-900" : "border-transparent text-slate-500 hover:text-slate-800"}`}>
+              {label}
+            </Link>
+          ))}
+        </nav>
+      )}
+
+      {ready && tab === "fields" ? (
+        <FieldsEditor key={t.updated_at} id={t.id} config={t.config ?? {}} saved={sanitizeFields(t.fields, t.config ?? {})} />
+      ) : generating ? (
         <div className="card flex flex-col items-center gap-3 p-16 text-center text-slate-600">
           <span className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" />
           <p className="font-medium">AI가 템플릿 게임을 만들고 있어요.</p>

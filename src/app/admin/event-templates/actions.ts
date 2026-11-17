@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSuperAdmin } from "@/lib/supabase/server";
-import { readTemplateJob, startTemplateJob, type GeneratedGame } from "@/lib/ai/generate-game";
+import { draftTemplateFields, readTemplateJob, startTemplateJob, type GeneratedGame } from "@/lib/ai/generate-game";
+import { sanitizeFields, type TemplateField } from "@/lib/event-fields";
 
 export type TemplateState = { error?: string; ok?: boolean; message?: string };
 
@@ -34,7 +35,7 @@ export async function createTemplate(_: TemplateState, formData: FormData): Prom
   redirect(`${BASE}/${data.id}`);
 }
 
-const gameColumns = (g: GeneratedGame) => ({ css: g.css, html: g.html, js: g.js, config: g.config, config_guide: g.guide });
+const gameColumns = (g: GeneratedGame) => ({ css: g.css, html: g.html, js: g.js, config: g.config, config_guide: g.guide, fields: g.fields });
 
 /** Asks AI to change the template (or to try again after a failure). The current game stays usable meanwhile. */
 export async function reviseTemplate(id: string, _: TemplateState, formData: FormData): Promise<TemplateState> {
@@ -50,7 +51,7 @@ export async function reviseTemplate(id: string, _: TemplateState, formData: For
   try {
     batchId = fresh
       ? await startTemplateJob(prompt)
-      : await startTemplateJob(t.prompt, { feedback, game: { css: t.css, html: t.html, js: t.js, config: t.config, guide: t.config_guide } });
+      : await startTemplateJob(t.prompt, { feedback, game: { css: t.css, html: t.html, js: t.js, config: t.config, guide: t.config_guide, fields: sanitizeFields(t.fields, t.config) } });
   } catch (e) {
     console.error("startTemplateJob failed", e);
     return { error: "AI 작업을 시작하지 못했어요: " + errText(e) };
@@ -120,6 +121,32 @@ export async function updateTemplate(id: string, _: TemplateState, formData: For
   if (error) return { error: "저장하지 못했어요: " + error.message };
   revalidatePath(BASE, "layout");
   return { ok: true, message: "저장했어요." };
+}
+
+/** Saves which settings users may change (and how) for this template. */
+export async function updateTemplateFields(id: string, fields: TemplateField[]): Promise<TemplateState> {
+  const { supabase } = await requireSuperAdmin();
+  const { data: t } = await supabase.from("event_templates").select("config").eq("id", id).single();
+  if (!t) return { error: "템플릿을 찾을 수 없어요." };
+  const clean = sanitizeFields(fields, t.config);
+  const { error } = await supabase.from("event_templates").update({ fields: clean }).eq("id", id);
+  if (error) return { error: "저장하지 못했어요: " + error.message };
+  revalidatePath(`${BASE}/${id}`);
+  return { ok: true, message: `저장했어요. 항목 ${clean.length}개` };
+}
+
+/** AI draft of the field list from the template's settings (not saved until the admin saves it). */
+export async function draftFields(id: string): Promise<{ fields?: TemplateField[]; error?: string }> {
+  const { supabase } = await requireSuperAdmin();
+  const { data: t } = await supabase.from("event_templates").select("name, config, config_guide").eq("id", id).single();
+  if (!t) return { error: "템플릿을 찾을 수 없어요." };
+  try {
+    const fields = await draftTemplateFields(t);
+    return fields.length ? { fields } : { error: "AI가 항목을 만들지 못했어요. 다시 시도해 주세요." };
+  } catch (e) {
+    console.error("draftTemplateFields failed", e);
+    return { error: "AI 초안을 만들지 못했어요: " + errText(e) };
+  }
 }
 
 export async function setTemplatePublic(id: string, isPublic: boolean) {

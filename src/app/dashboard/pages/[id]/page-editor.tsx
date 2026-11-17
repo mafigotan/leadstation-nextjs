@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition, type ReactNode } from "react";
-import { applyEventTemplate, listEventTemplates, listTemplateRequests, requestEventTemplate, type TemplateRequest, savePageSections, type TemplateOption } from "../actions";
-import { gameDocument, type EventGame } from "@/lib/event-game";
+import { listEventTemplates, listTemplateRequests, requestEventTemplate, type TemplateRequest, savePageSections, type TemplateOption } from "../actions";
+import { gameDocument } from "@/lib/event-game";
+import { EventTemplateEditor } from "./event-editor";
 import { THEMES, THEME_CLASSES, type PageContent, type Theme } from "@/lib/types";
 import { SECTION_LABELS, emptySection, hasEvent, toSections, type Section, type SectionType } from "@/lib/page-sections";
 import { SectionView } from "@/components/promo-page";
@@ -222,28 +223,32 @@ function TemplateRequestForm({ onBack }: { onBack: () => void }) {
 function GameMaker({ s, update, close, context }: { s: Section; update: (p: Partial<Section>) => void; close: () => void; context: string }) {
   const [templates, setTemplates] = useState<TemplateOption[] | null>(null);
   const [picked, setPicked] = useState<string>(s.game?.template_id ?? "");
+  const [editing, setEditing] = useState(false);
   const [requesting, setRequesting] = useState(false);
-  const [desc, setDesc] = useState("");
-  const [error, setError] = useState("");
-  const [pending, start] = useTransition();
   useEffect(() => {
     listEventTemplates().then((list) => {
       setTemplates(list);
       setPicked((p) => p || list[0]?.id || "");
+      // A game already made from a listed template opens straight in its settings.
+      if (s.game?.template_id && list.some((t) => t.id === s.game?.template_id)) setEditing(true);
     });
-  }, []);
+  }, [s.game?.template_id]);
   const current = templates?.find((t) => t.id === picked);
 
-  const run = (fn: () => Promise<{ game?: EventGame; error?: string }>) =>
-    start(async () => {
-      setError("");
-      const r = await fn();
-      if (r.error || !r.game) return setError(r.error ?? "게임을 만들지 못했어요.");
-      update({ game: r.game });
-      close();
-    });
-
   if (requesting) return <TemplateRequestForm onBack={() => setRequesting(false)} />;
+  if (editing && current)
+    return (
+      <EventTemplateEditor
+        template={current}
+        initial={s.game?.template_id === current.id ? s.game.config : undefined}
+        context={context}
+        onBack={() => setEditing(false)}
+        onApply={(game) => {
+          update({ game });
+          close();
+        }}
+      />
+    );
   const requestLink = (
     <button type="button" onClick={() => setRequesting(true)} className="w-full rounded-lg border border-dashed border-slate-300 py-2 text-sm text-slate-600 hover:bg-slate-50">
       원하는 템플릿이 없나요? <span className="font-medium text-indigo-600">새 템플릿 요청하기</span>
@@ -261,7 +266,7 @@ function GameMaker({ s, update, close, context }: { s: Section; update: (p: Part
           </>
         ) : (
           <>
-            <div className="grid max-h-48 gap-2 overflow-y-auto sm:grid-cols-2">
+            <div className="grid max-h-56 gap-2 overflow-y-auto sm:grid-cols-3">
               {templates.map((t) => (
                 <button key={t.id} type="button" onClick={() => setPicked(t.id)} className={`rounded-lg border p-3 text-left text-sm ${picked === t.id ? "border-indigo-500 bg-indigo-50" : "border-slate-200 hover:bg-slate-50"}`}>
                   <span className="block font-medium">🎮 {t.name}</span>
@@ -270,21 +275,15 @@ function GameMaker({ s, update, close, context }: { s: Section; update: (p: Part
               ))}
             </div>
             {current && (
-              <iframe key={current.id} title="미리보기" srcDoc={gameDocument(current.game)} sandbox="allow-scripts" className="w-full rounded-lg border border-slate-200" style={{ height: 360 }} />
+              <iframe key={current.id} title="미리보기" srcDoc={gameDocument(current.game)} sandbox="allow-scripts" className="w-full rounded-lg border border-slate-200" style={{ height: 420 }} />
             )}
-            <div>
-              <label className="label" htmlFor="tpl-req">이 프로모션에 맞게 바꿀 내용 (선택)</label>
-              <textarea id="tpl-req" value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} maxLength={1000} className="input" placeholder="예: 경품은 1등 무료 이용권(5%), 2등 30% 할인(25%), 3등 10% 할인(70%). 색상은 초록 계열로." />
-              <p className="mt-1 text-xs text-slate-500">비워 두면 템플릿 기본 설정 그대로 넣어요. 적으면 AI가 경품, 확률, 문구, 색상을 맞춰요.</p>
-            </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <button type="button" disabled={pending || !current} onClick={() => run(() => applyEventTemplate(picked, desc, context))} className="btn-primary w-full">
-              {pending ? "AI가 설정을 맞추고 있어요..." : desc.trim() ? "AI로 맞춰서 넣기" : "이 템플릿 넣기"}
+            <button type="button" disabled={!current} onClick={() => setEditing(true)} className="btn-primary w-full">
+              이 템플릿으로 내용 정하기
             </button>
             {requestLink}
           </>
         )}
-      {s.game && !pending && <p className="text-xs text-slate-500">새로 넣으면 지금 게임이 바뀌어요. 저장해야 페이지에 반영돼요.</p>}
+      {s.game && <p className="text-xs text-slate-500">다른 템플릿을 적용하면 지금 게임이 바뀌어요. 저장해야 페이지에 반영돼요.</p>}
     </div>
   );
 }
@@ -438,7 +437,8 @@ export function PageEditor({
         canDuplicate={(s) => s.type !== "form"}
         canAdd={(type) => (type === "form" && sections.some((s) => s.type === "form") ? "신청 폼은 프로모션에 하나만 넣을 수 있어요." : null)}
         toolKeys={["main", "game"]}
-        modalTitle={(key) => (key === "game" ? "이벤트 템플릿 고르기" : key === "terms" ? "신청 폼 약관" : key === "mail" ? "신청자 안내 메일" : key === "fields" ? "신청 폼 필드" : "이미지")}
+        modalWide={(key) => key === "game"}
+        modalTitle={(key) => (key === "game" ? "이벤트 만들기" : key === "terms" ? "신청 폼 약관" : key === "mail" ? "신청자 안내 메일" : key === "fields" ? "신청 폼 필드" : "이미지")}
         renderBlock={(s, _i, { onImage, ed }) => (
           <SectionView s={s} theme={t} ed={ed} onImage={onImage} form={<MockForm label={s.label || formLabel} theme={theme} fields={s.fields} required={s.required} event={hasEvent(sections)} terms={previewTerms(s, termOptions)} agreeAll={!!s.terms && !!s.agree_all} />} />
         )}

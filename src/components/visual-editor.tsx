@@ -92,7 +92,7 @@ export function makeEd<B extends { id: string }>(b: B, onChange: (next: B) => vo
   };
 }
 
-export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -102,7 +102,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
       <div
         data-ve-panel
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 text-left text-sm text-slate-800 shadow-2xl"
+        className={`max-h-[90vh] w-full ${wide ? "max-w-5xl" : "max-w-2xl"} overflow-y-auto rounded-2xl bg-white p-5 text-left text-sm text-slate-800 shadow-2xl`}
         style={{ fontFamily: "var(--font-sans)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -138,6 +138,7 @@ export function VisualEditor<B extends { id: string }>({
   canDuplicate,
   canAdd,
   modalTitle,
+  modalWide,
   toolKeys = ["main"],
 }: {
   blocks: B[];
@@ -167,6 +168,8 @@ export function VisualEditor<B extends { id: string }>({
   canAdd?: (type: string) => string | null;
   /** Title of the modal opened for key `key` (default 이미지). */
   modalTitle?: (key: string) => string;
+  /** Keys whose settings window needs more room. */
+  modalWide?: (key: string) => boolean;
   /** Image keys whose 설정 button already comes from renderTools (default ["main"]). */
   toolKeys?: string[];
 }) {
@@ -385,7 +388,7 @@ export function VisualEditor<B extends { id: string }>({
         </div>
       </div>
       {image && imgBlock && renderImage && (
-        <Modal title={modalTitle?.(image.key) ?? "이미지"} onClose={() => setImage(null)}>
+        <Modal title={modalTitle?.(image.key) ?? "이미지"} wide={modalWide?.(image.key)} onClose={() => setImage(null)}>
           {renderImage(imgBlock, image.key, (p) => update(imgBlock.id, p), () => setImage(null))}
         </Modal>
       )}

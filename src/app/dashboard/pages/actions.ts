@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { requireSite } from "@/lib/supabase/server";
 import { limitMessage, metered } from "@/lib/usage";
 import { generatePageContent } from "@/lib/ai/generate-page";
-import { fillTemplateConfig } from "@/lib/ai/generate-game";
+import { fillTemplateFields, suggestFieldText } from "@/lib/ai/generate-game";
+import { buildConfig, getPath, templateFields, type TemplateField } from "@/lib/event-fields";
 import type { EventGame } from "@/lib/event-game";
 import { makeSlug } from "@/lib/slug";
 import { SLUG_RE } from "@/lib/site";
@@ -138,7 +139,9 @@ export async function savePageSections(
   const { supabase, site } = await requireSite();
   const { data: page } = await supabase.from("pages").select("content").eq("id", id).eq("site_id", site.id).single();
   if (!page) return { error: "페이지를 찾을 수 없어요." };
-  const sections = sanitizeSections(input.sections);
+  const enforced = await enforceTemplateGames(supabase, sanitizeSections(input.sections));
+  if (enforced.error) return { error: enforced.error };
+  const sections = enforced.sections;
   const termsError = await checkFormTerms(supabase, site.id, sections);
   if (termsError) return { error: termsError };
   const theme = (THEMES as readonly string[]).includes(input.theme) ? (input.theme as Theme) : "indigo";
@@ -151,42 +154,99 @@ export async function savePageSections(
   return {};
 }
 
-export type TemplateOption = { id: string; name: string; description: string; game: EventGame };
+export type TemplateOption = { id: string; name: string; description: string; game: EventGame; fields: TemplateField[] };
 
-/** Published event templates (with their default settings) for the editor. */
+/** Published event templates (with their default settings and editable fields) for the editor. */
 export async function listEventTemplates(): Promise<TemplateOption[]> {
   const { supabase } = await requireSite();
   const { data } = await supabase
     .from("event_templates")
-    .select("id, name, description, css, html, js, config")
+    .select("id, name, description, css, html, js, config, fields")
     .eq("is_public", true)
     .eq("status", "ready")
     .order("sort_order")
     .order("created_at", { ascending: false });
-  return (data ?? []).map((t) => ({ id: t.id, name: t.name, description: t.description, game: { css: t.css, html: t.html, js: t.js, config: t.config, template_id: t.id } }));
+  return (data ?? []).map((t) => ({
+    id: t.id,
+    name: t.name,
+    description: t.description,
+    game: { css: t.css, html: t.html, js: t.js, config: t.config, template_id: t.id },
+    fields: templateFields(t.fields, t.config ?? {}),
+  }));
 }
 
-/** A template's game; with a request, AI first adjusts its settings (prizes, texts, colors) for this promotion. */
-export async function applyEventTemplate(templateId: string, request: string, context: string): Promise<{ game?: EventGame; error?: string }> {
-  const { supabase, site } = await requireSite();
+async function readTemplate(supabase: Awaited<ReturnType<typeof requireSite>>["supabase"], id: string) {
   const { data: t } = await supabase
     .from("event_templates")
-    .select("id, name, css, html, js, config, config_guide")
-    .eq("id", templateId)
+    .select("id, name, css, html, js, config, config_guide, fields")
+    .eq("id", id)
     .eq("is_public", true)
     .eq("status", "ready")
     .maybeSingle();
+  return t ? { ...t, config: (t.config ?? {}) as Record<string, unknown>, fieldList: templateFields(t.fields, t.config ?? {}) } : null;
+}
+
+const aiError = (e: unknown, fallback: string) => limitMessage(e) ?? (e instanceof Error && e.message.startsWith("AI") ? e.message : fallback);
+
+/** AI fills the template's AI-fillable fields for this promotion; everything else stays as the user has it. */
+export async function fillEventFields(templateId: string, request: string, context: string, values: unknown): Promise<{ values?: Record<string, unknown>; error?: string }> {
+  const { supabase, site } = await requireSite();
+  const t = await readTemplate(supabase, templateId);
   if (!t) return { error: "템플릿을 찾을 수 없어요." };
-  const game: EventGame = { css: t.css, html: t.html, js: t.js, config: t.config, template_id: t.id };
-  const req = String(request ?? "").trim().slice(0, 1000);
-  if (!req) return { game };
+  const current = buildConfig(t.fieldList, t.config, values).config;
+  const targets = t.fieldList.filter((f) => f.user_edit && f.ai_fill);
+  if (!targets.length) return { error: "이 템플릿은 AI로 채울 항목이 없어요." };
   try {
-    game.config = await metered(supabase, site.id, ["text"], () => fillTemplateConfig(t, req, String(context ?? "").slice(0, 1000)));
-    return { game };
+    const filled = await metered(supabase, site.id, ["text"], () =>
+      fillTemplateFields(t, targets, Object.fromEntries(targets.map((f) => [f.key, getPath(current, f.key)])), String(request ?? "").trim().slice(0, 1000), String(context ?? "").slice(0, 1000)),
+    );
+    let next = current;
+    for (const f of targets) if (f.key in filled) next = buildConfig([f], next, { ...next, ...nest(f.key, filled[f.key]) }).config;
+    return { values: next };
   } catch (e) {
-    console.error("fillTemplateConfig failed", e);
-    return { error: limitMessage(e) ?? (e instanceof Error && e.message.startsWith("AI") ? e.message : "설정을 적용하지 못했어요. 잠시 후 다시 시도해 주세요.") };
+    console.error("fillTemplateFields failed", e);
+    return { error: aiError(e, "AI로 채우지 못했어요. 잠시 후 다시 시도해 주세요.") };
   }
+}
+
+const nest = (path: string, value: unknown): Record<string, unknown> => path.split(".").reduceRight<unknown>((acc, k) => ({ [k]: acc }), value) as Record<string, unknown>;
+
+/** Three alternatives for one text field. */
+export async function suggestEventText(templateId: string, key: string, current: string, request: string, context: string): Promise<{ options?: string[]; error?: string }> {
+  const { supabase, site } = await requireSite();
+  const t = await readTemplate(supabase, templateId);
+  const f = t?.fieldList.find((x) => x.key === key && x.user_edit && x.ai_fill && (x.type === "text" || x.type === "textarea"));
+  if (!t || !f) return { error: "이 항목은 AI로 바꿀 수 없어요." };
+  try {
+    const options = await metered(supabase, site.id, ["text"], () =>
+      suggestFieldText(t.name, f, String(current ?? "").slice(0, 2000), String(request ?? "").trim().slice(0, 300), String(context ?? "").slice(0, 1000)),
+    );
+    return options.length ? { options } : { error: "제안을 만들지 못했어요. 다시 시도해 주세요." };
+  } catch (e) {
+    console.error("suggestFieldText failed", e);
+    return { error: aiError(e, "제안을 만들지 못했어요. 잠시 후 다시 시도해 주세요.") };
+  }
+}
+
+/**
+ * Template-based games always run the template's current code, and only its user-editable fields may differ
+ * from the default. Returns an error when a field value cannot be used (e.g. prize weights not adding up).
+ */
+async function enforceTemplateGames(supabase: Awaited<ReturnType<typeof requireSite>>["supabase"], sections: Section[]): Promise<{ sections: Section[]; error?: string }> {
+  const out: Section[] = [];
+  for (const s of sections) {
+    const g = s.type === "event" ? s.game : undefined;
+    const t = g?.template_id ? await readTemplate(supabase, g.template_id) : null;
+    if (!g || !t) {
+      out.push(s);
+      continue;
+    }
+    const { config, errors } = buildConfig(t.fieldList, t.config, g.config);
+    const bad = Object.keys(errors)[0];
+    if (bad) return { sections, error: `이벤트 설정을 확인해 주세요. ${t.fieldList.find((f) => f.key === bad)?.label ?? bad}: ${errors[bad]}` };
+    out.push({ ...s, game: { css: t.css, html: t.html, js: t.js, config, template_id: t.id } });
+  }
+  return { sections: out };
 }
 
 export type TemplateRequest = { id: string; game_type: string; description: string; status: string; admin_note: string; created_at: string };

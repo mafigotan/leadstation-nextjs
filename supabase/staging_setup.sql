@@ -1845,3 +1845,12 @@ revoke all on function public.reject_site_handle_request(uuid, text) from public
 grant execute on function public.reject_site_handle_request(uuid, text) to authenticated;
 
 commit;
+
+-- ===== 0018_event_template_fields.sql =====
+-- Settings a user may change when putting an event template on a promotion (see src/lib/event-fields.ts).
+
+begin;
+
+alter table public.event_templates add column if not exists fields jsonb not null default '[]'::jsonb;
+
+commit;
