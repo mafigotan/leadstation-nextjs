@@ -62,7 +62,10 @@ function parseGame(text: string): GeneratedGame {
   return { css: part("CSS"), html, js, config, guide: part("GUIDE") };
 }
 
-const TEMPLATE_SYSTEM = DESIGN + "\n\nThis is a reusable template, so make the config cover every text, prize and color a marketer would want to change.";
+const TEMPLATE_SYSTEM =
+  DESIGN +
+  "\n\nThis is a reusable template, so make the config cover every text, prize and color a marketer would want to change." +
+  "\n\nKeep the code compact: CSS under 15,000 characters and JS under 40,000, no code comments, no unused code, and reuse helpers instead of repeating similar blocks. Plan briefly, then write the answer; do not draft the code twice.";
 
 /**
  * Super admin template at the highest quality. It can take longer than a server request may run,
@@ -79,7 +82,8 @@ export async function startTemplateJob(prompt: string, previous?: { game: Genera
         custom_id: "template",
         params: {
           model: MODEL,
-          max_tokens: 64000,
+          // Thinking counts toward max_tokens, so give a long game the model's full 128K output.
+          max_tokens: 128000,
           thinking: { type: "adaptive" },
           output_config: { effort: "high" },
           system: TEMPLATE_SYSTEM,
