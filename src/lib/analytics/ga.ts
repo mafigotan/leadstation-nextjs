@@ -2,6 +2,7 @@ import "server-only";
 import { createSign } from "node:crypto";
 import { unstable_cache } from "next/cache";
 import { propertyId, serviceAccount as readServiceAccount } from "./config";
+import { eachDay, previousOf, type Period } from "./period";
 
 /**
  * Site visit statistics from the platform's single GA4 property (GA4 Data API, service account).
@@ -15,8 +16,6 @@ import { propertyId, serviceAccount as readServiceAccount } from "./config";
  * Another source (e.g. the user's own GA property over OAuth) can later implement the same `SiteStats` shape.
  */
 
-export type RangeDays = 7 | 28 | 90;
-export const RANGES: RangeDays[] = [7, 28, 90];
 
 export type Totals = { users: number; sessions: number; views: number; engagementSec: number };
 export type DailyPoint = { date: string; users: number; views: number };
@@ -24,7 +23,7 @@ export type NamedValue = { name: string; value: number };
 export type PageStat = { path: string; title: string; views: number; users: number; engagementSec: number };
 
 export type SiteStats = {
-  days: RangeDays;
+  period: Period;
   current: Totals;
   previous: Totals;
   daily: DailyPoint[];
@@ -108,12 +107,6 @@ function totalsOf(r: GaRow | undefined): Totals {
   return { users: num(r, 0), sessions: num(r, 1), views: num(r, 2), engagementSec: num(r, 3) };
 }
 
-/** yyyy-mm-dd in Korea time, `offset` days before today. */
-function kstDate(offset: number): string {
-  const d = new Date(Date.now() + 9 * 3600_000 - offset * 86400_000);
-  return d.toISOString().slice(0, 10);
-}
-
 const REGION_KO: Record<string, string> = {
   Seoul: "서울", "Gyeonggi-do": "경기", Incheon: "인천", Busan: "부산", Daegu: "대구", Daejeon: "대전", Gwangju: "광주",
   Ulsan: "울산", Sejong: "세종", "Sejong-si": "세종", "Gangwon-do": "강원", Gangwon: "강원",
@@ -138,9 +131,11 @@ export function normalizePath(path: string, handle: string): string {
   return p.length > 1 ? p.replace(/\/$/, "") : p;
 }
 
-async function fetchStats(handle: string, days: RangeDays): Promise<SiteStats> {
-  const current = { startDate: `${days - 1}daysAgo`, endDate: "today", name: "current" };
-  const previous = { startDate: `${days * 2 - 1}daysAgo`, endDate: `${days}daysAgo`, name: "previous" };
+async function fetchStats(handle: string, start: string, end: string, days: number): Promise<SiteStats> {
+  const period: Period = { start, end, days, preset: null };
+  const before = previousOf(period);
+  const current = { startDate: start, endDate: end, name: "current" };
+  const previous = { startDate: before.start, endDate: before.end, name: "previous" };
   const filter = siteFilter(handle);
   const base = { dateRanges: [current], dimensionFilter: filter };
   const totalsMetrics = [{ name: "activeUsers" }, { name: "sessions" }, { name: "screenPageViews" }, { name: "userEngagementDuration" }];
@@ -149,7 +144,7 @@ async function fetchStats(handle: string, days: RangeDays): Promise<SiteStats> {
     gaPost<{ reports: GaReport[] }>("batchRunReports", {
       requests: [
         { dateRanges: [current, previous], dimensionFilter: filter, metrics: totalsMetrics },
-        { ...base, dimensions: [{ name: "date" }], metrics: [{ name: "activeUsers" }, { name: "screenPageViews" }], limit: 400 },
+        { ...base, dimensions: [{ name: "date" }], metrics: [{ name: "activeUsers" }, { name: "screenPageViews" }], limit: 1000 },
         { ...base, dimensions: [{ name: "sessionSource" }, { name: "sessionMedium" }], metrics: [{ name: "sessions" }],
           orderBys: [{ metric: { metricName: "sessions" }, desc: true }], limit: 6 },
       ],
@@ -179,8 +174,7 @@ async function fetchStats(handle: string, days: RangeDays): Promise<SiteStats> {
     return [`${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`, { users: num(r, 0), views: num(r, 1) }];
   }));
   const daily: DailyPoint[] = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const date = kstDate(i);
+  for (const date of eachDay(period)) {
     daily.push({ date, ...(byDate.get(date) ?? { users: 0, views: 0 }) });
   }
 
@@ -197,7 +191,7 @@ async function fetchStats(handle: string, days: RangeDays): Promise<SiteStats> {
   }
 
   return {
-    days,
+    period,
     current: totalsOf(cur),
     previous: totalsOf(prev),
     daily,
@@ -211,10 +205,10 @@ async function fetchStats(handle: string, days: RangeDays): Promise<SiteStats> {
 
 const cachedStats = unstable_cache(fetchStats, ["ga-site-stats-v1"], { revalidate: 3600 });
 
-export async function getSiteStats(handle: string, days: RangeDays): Promise<StatsResult> {
+export async function getSiteStats(handle: string, period: Period): Promise<StatsResult> {
   if (!gaConfigured()) return { ok: false, reason: "not_configured" };
   try {
-    return { ok: true, stats: await cachedStats(handle.toLowerCase(), days) };
+    return { ok: true, stats: await cachedStats(handle.toLowerCase(), period.start, period.end, period.days) };
   } catch (e) {
     console.error("[ga] stats", e);
     return { ok: false, reason: "error", message: e instanceof Error ? e.message : String(e) };

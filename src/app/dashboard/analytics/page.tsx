@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { isSuperAdmin, requireSite } from "@/lib/supabase/server";
 import { userUrl } from "@/lib/site";
-import { RANGES, getRealtimeUsers, type RangeDays } from "@/lib/analytics/ga";
+import { getRealtimeUsers } from "@/lib/analytics/ga";
+import { MAX_DAYS, PRESETS, kstToday, parsePeriod, periodLabel, periodQuery } from "@/lib/analytics/period";
 import { buildSiteReport, KIND_LABEL, type ContentKind } from "@/lib/analytics/report";
 import { DailyBars, Delta, GaStatusPanel, Kpi, NotConfigured, duration, fmt, pct } from "./parts";
 
@@ -38,16 +39,19 @@ function Bars({ items }: { items: { name: string; value: number }[] }) {
   );
 }
 
-export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<{ range?: string; kind?: string; check?: string }> }) {
+export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<{ range?: string; from?: string; to?: string; kind?: string; check?: string }> }) {
   const sp = await searchParams;
-  const days = (RANGES.find((r) => String(r) === sp.range) ?? 28) as RangeDays;
+  const period = parsePeriod(sp);
+  const today = kstToday();
   const kind = (KINDS.find((k) => k.key === sp.kind)?.key ?? "all") as "all" | ContentKind;
   const { supabase, site } = await requireSite();
-  const [res, live, superAdmin] = await Promise.all([buildSiteReport(supabase, site, days), getRealtimeUsers(site.handle), isSuperAdmin(supabase)]);
+  const [res, live, superAdmin] = await Promise.all([buildSiteReport(supabase, site, period), getRealtimeUsers(site.handle), isSuperAdmin(supabase)]);
   // Setup diagnostics: on staging/previews for everyone, on production only for platform admins.
   const showStatus = superAdmin || process.env.VERCEL_ENV !== "production";
   const address = userUrl(site.handle).replace(/^https?:\/\//, "").replace(/\/$/, "");
-  const q = (r: number, k: string) => `/dashboard/analytics?range=${r}${k !== "all" ? `&kind=${k}` : ""}`;
+  const kindQ = (k: string) => (k !== "all" ? `&kind=${k}` : "");
+  const q = (r: number, k: string) => `/dashboard/analytics?range=${r}${kindQ(k)}`;
+  const here = (k: string) => `/dashboard/analytics?${periodQuery(period)}${kindQ(k)}`;
 
   return (
     <div className="space-y-6">
@@ -65,14 +69,34 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
               <span className="size-2 rounded-full bg-emerald-500" />지금 방문 중 {fmt(live)}명
             </span>
           )}
-          <div className="flex overflow-hidden rounded-lg border border-slate-300 bg-white text-sm">
-            {RANGES.map((r) => (
-              <Link key={r} href={q(r, kind)} className={`px-3.5 py-2 ${r === days ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}>
-                {r}일
-              </Link>
-            ))}
-          </div>
         </div>
+      </div>
+
+      <div className="card flex flex-wrap items-center gap-3 p-3">
+        <div className="flex overflow-hidden rounded-lg border border-slate-300 bg-white text-sm">
+          {PRESETS.map((r) => (
+            <Link key={r} href={q(r, kind)} className={`px-3.5 py-2 ${r === period.preset ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}>
+              {r}일
+            </Link>
+          ))}
+        </div>
+        <form action="/dashboard/analytics" className="flex flex-wrap items-center gap-2 text-sm">
+          {kind !== "all" && <input type="hidden" name="kind" value={kind} />}
+          <label className="sr-only" htmlFor="from">시작일</label>
+          <input id="from" name="from" type="date" required defaultValue={period.start} min="2020-01-01" max={today}
+            className={`rounded-lg border px-2.5 py-2 ${period.preset ? "border-slate-300" : "border-slate-900"}`} />
+          <span className="text-slate-400">~</span>
+          <label className="sr-only" htmlFor="to">종료일</label>
+          <input id="to" name="to" type="date" required defaultValue={period.end} min="2020-01-01" max={today}
+            className={`rounded-lg border px-2.5 py-2 ${period.preset ? "border-slate-300" : "border-slate-900"}`} />
+          <button className="btn-secondary">조회</button>
+        </form>
+        <span className="text-xs text-slate-500" title={`직접 설정은 최대 ${MAX_DAYS}일까지`}>{periodLabel(period)}</span>
+        {res.ok && (
+          <a href={`/dashboard/analytics/export?${periodQuery(period)}`} className="btn-primary ml-auto" download>
+            엑셀 다운로드
+          </a>
+        )}
       </div>
 
       {showStatus && <GaStatusPanel force={sp.check === "1"} error={!res.ok && res.reason === "error" ? res.message : undefined} />}
@@ -155,7 +179,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
                 <h2 className="font-bold">콘텐츠별 성과</h2>
                 <div className="flex flex-wrap gap-1 text-sm">
                   {KINDS.map((k) => (
-                    <Link key={k.key} href={q(days, k.key)}
+                    <Link key={k.key} href={here(k.key)}
                       className={`rounded-full border px-3 py-1 ${k.key === kind ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"}`}>
                       {k.label}
                     </Link>

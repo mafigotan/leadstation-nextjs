@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getSiteStats, normalizePath, type RangeDays, type SiteStats, type StatsResult } from "./ga";
+import { getSiteStats, normalizePath, type SiteStats, type StatsResult } from "./ga";
+import { addDays, previousOf, type Period } from "./period";
 
 /** GA visit numbers joined with LEADstation's own data: page names and leads (Supabase). */
 
@@ -32,9 +33,8 @@ function kstDay(iso: string): string {
   return new Date(new Date(iso).getTime() + 9 * 3600_000).toISOString().slice(0, 10);
 }
 
-/** First moment (UTC) of the Korean day `offset` days ago. */
-function kstStart(offset: number): Date {
-  const day = new Date(Date.now() + 9 * 3600_000 - offset * 86400_000).toISOString().slice(0, 10);
+/** First moment (UTC) of a Korean day. */
+function kstStart(day: string): Date {
   return new Date(`${day}T00:00:00+09:00`);
 }
 
@@ -45,13 +45,14 @@ function kindOf(path: string): ContentKind {
   return "promo";
 }
 
-export async function buildSiteReport(supabase: SupabaseClient, site: { id: string; handle: string }, days: RangeDays): Promise<ReportResult> {
-  const statsRes = await getSiteStats(site.handle, days);
+export async function buildSiteReport(supabase: SupabaseClient, site: { id: string; handle: string }, period: Period): Promise<ReportResult> {
+  const statsRes = await getSiteStats(site.handle, period);
   if (!statsRes.ok) return statsRes;
   const stats = statsRes.stats;
 
-  const since = kstStart(days * 2 - 1);
-  const split = kstStart(days - 1);
+  const since = kstStart(previousOf(period).start);
+  const split = kstStart(period.start);
+  const until = kstStart(addDays(period.end, 1));
   const [pagesQ, articlesQ] = await Promise.all([
     supabase.from("pages").select("id, slug, title").eq("site_id", site.id),
     supabase.from("articles").select("id, slug, title").eq("site_id", site.id),
@@ -61,7 +62,7 @@ export async function buildSiteReport(supabase: SupabaseClient, site: { id: stri
 
   const leadsQ = pages.length
     ? await supabase.from("leads").select("page_id, created_at").in("page_id", pages.map((p) => p.id))
-        .gte("created_at", since.toISOString()).limit(20000)
+        .gte("created_at", since.toISOString()).lt("created_at", until.toISOString()).limit(50000)
     : { data: [] };
   const leads = (leadsQ.data ?? []) as { page_id: string; created_at: string }[];
 
