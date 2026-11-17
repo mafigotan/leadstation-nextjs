@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { siteUrl } from "@/lib/slug";
+import { HANDLE_RE } from "@/lib/site";
 
 export type AuthState = { error?: string; message?: string; sentTo?: string };
 
@@ -18,7 +19,9 @@ export async function signIn(_: AuthState, formData: FormData): Promise<AuthStat
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { error: "이메일 또는 비밀번호가 올바르지 않아요." };
-  redirect("/dashboard");
+  // Came from a user site's "관리자 로그인": open that site's dashboard.
+  const site = String(formData.get("site") ?? "").toLowerCase();
+  redirect(HANDLE_RE.test(site) ? `/auth/site-admin?site=${site}` : "/dashboard");
 }
 
 export async function signUp(_: AuthState, formData: FormData): Promise<AuthState> {

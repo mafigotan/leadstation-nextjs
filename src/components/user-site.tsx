@@ -1,6 +1,7 @@
 // Header, footer and cards shared by the public user site pages.
 import Link from "next/link";
-import { blogUrl, userUrl } from "@/lib/site";
+import { blogUrl, siteUrl, userUrl } from "@/lib/site";
+import { SiteAdminLinks } from "@/components/site-admin-links";
 import { PROMO_STATE_LABEL, dotDate, periodText, promoDaysLeft, type PostCard, type PromoCard, type PublicSite } from "@/lib/user-site";
 
 export function siteName(site: PublicSite) {
@@ -57,7 +58,10 @@ export function SiteFooter({ site }: { site: PublicSite }) {
         {line2.length > 0 && <p>{line2.join(" · ")}</p>}
         <div className="flex flex-wrap justify-between gap-2 pt-3 text-xs text-slate-500">
           <span>© {new Date().getFullYear()} {name}. All rights reserved.</span>
-          <span>Powered by LEADstation</span>
+          <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span>Powered by LEADstation</span>
+            <SiteAdminLinks handle={site.handle} mainUrl={siteUrl()} />
+          </span>
         </div>
       </div>
     </footer>

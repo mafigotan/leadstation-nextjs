@@ -5,13 +5,13 @@ import { signIn, signUp, type AuthState } from "./actions";
 
 type Mode = "signin" | "signup";
 
-export function LoginForm() {
+export function LoginForm({ site }: { site?: string }) {
   const [mode, setMode] = useState<Mode>("signin");
   // A fresh form per mode, so messages from one mode don't carry over to the other.
-  return <AuthForm key={mode} mode={mode} setMode={setMode} />;
+  return <AuthForm key={mode} mode={mode} setMode={setMode} site={site} />;
 }
 
-function AuthForm({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void }) {
+function AuthForm({ mode, setMode, site }: { mode: Mode; setMode: (m: Mode) => void; site?: string }) {
   const [state, action, pending] = useActionState<AuthState, FormData>(
     mode === "signin" ? signIn : signUp,
     {},
@@ -41,6 +41,7 @@ function AuthForm({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void })
 
   return (
     <form action={action} className="space-y-4">
+      {site && <input type="hidden" name="site" value={site} />}
       <div className="mb-2">
         <h1 className="text-lg font-bold">{signup ? "회원가입" : "로그인"}</h1>
         <p className="mt-1 text-sm text-slate-500">

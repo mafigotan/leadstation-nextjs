@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { AUTH_HINT_COOKIE, syncAuthHint } from "@/lib/auth-hint";
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -44,8 +45,11 @@ export async function updateSession(request: NextRequest) {
   if (!user && /^\/(dashboard|admin|blocked)(\/|$)/.test(request.nextUrl.pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    return NextResponse.redirect(url);
+    const redirect = NextResponse.redirect(url);
+    syncAuthHint(redirect, false, request.cookies.has(AUTH_HINT_COOKIE));
+    return redirect;
   }
 
+  syncAuthHint(response, !!user, request.cookies.has(AUTH_HINT_COOKIE));
   return response;
 }
