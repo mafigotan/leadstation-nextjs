@@ -236,3 +236,25 @@ export async function requestEventTemplate(input: { gameType: string; descriptio
   }
   return { ok: true };
 }
+
+/** Sends the applicant thank-you email (with the editor's unsaved settings and sample answers) to the signed-in user. */
+export async function sendApplicantMailTest(pageId: string, mail: unknown, fields: unknown): Promise<{ ok?: string; error?: string }> {
+  const { supabase, user, site } = await requireSite();
+  if (!user.email) return { error: "내 계정에 이메일이 없어요." };
+  const { data: page } = await supabase.from("pages").select("title, slug").eq("id", pageId).eq("site_id", site.id).maybeSingle();
+  if (!page) return { error: "페이지를 찾을 수 없어요." };
+  const { PUBLIC_SITE_COLUMNS } = await import("@/lib/user-site");
+  const { data: full } = await supabase.from("sites").select(PUBLIC_SITE_COLUMNS).eq("id", site.id).maybeSingle();
+  if (!full) return { error: "사이트 정보를 불러오지 못했어요." };
+  const { applicantEmail, sampleNotice, sanitizeApplicantMail, siteDisplayName } = await import("@/lib/lead-mail-template");
+  const { mailProvider, sendOne } = await import("@/lib/newsletter/mailer");
+  if (!mailProvider()) return { error: "메일 발송 설정이 없어요." };
+  const s = full as unknown as import("@/lib/user-site").PublicSite;
+  const { subject, html } = applicantEmail(sampleNotice(s, page.title, cleanFields(fields)), s, sanitizeApplicantMail(mail));
+  try {
+    await sendOne({ to: user.email, subject: `[테스트] ${subject}`, html, fromName: siteDisplayName(s), replyTo: s.contact_email || undefined });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "발송하지 못했어요." };
+  }
+  return { ok: `${user.email}(으)로 테스트 메일을 보냈어요.` };
+}

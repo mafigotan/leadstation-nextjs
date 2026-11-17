@@ -91,7 +91,8 @@ export async function submitLead(pageId: string, sectionId: string, _: LeadState
       terms: terms.map((t) => ({ label: t.label, required: t.required, agreed: agreed(t.version_id) })),
       marketing,
     };
-    after(() => sendLeadNotifications(notice));
+    const mail = section?.mail;
+    after(() => sendLeadNotifications(notice, mail));
   }
   return { done: true };
 }

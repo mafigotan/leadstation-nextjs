@@ -11,6 +11,8 @@ import { LEAD_FIELDS, LEAD_FIELD_LABEL, formFields, type LeadField } from "@/lib
 import { EventField, LeadFormFields } from "@/app/p/[slug]/lead-form";
 import { ToolBtn, ToolInput, VisualEditor, type PaletteItem } from "@/components/visual-editor";
 import type { TermOption } from "@/lib/terms";
+import { ApplicantMailSettings } from "./mail-settings";
+import type { PublicSite } from "@/lib/user-site";
 import { TermsPicker, formTermsOf, previewTerms, termsProblem } from "./terms-picker";
 
 const THEME_LABELS: Record<string, string> = { indigo: "인디고", emerald: "에메랄드", rose: "로즈", amber: "앰버", slate: "슬레이트" };
@@ -137,6 +139,9 @@ function SectionTools({ s, update, openImage, termOptions }: { s: Section; updat
           </ToolBtn>
           <ToolBtn label="신청 폼 약관 설정" danger={!!termsProblem(s, termOptions)} onClick={() => openImage("terms")}>
             📄 약관 {formTermsOf(s, termOptions).length}{termsProblem(s, termOptions) ? " ⚠" : ""}
+          </ToolBtn>
+          <ToolBtn label="신청자 안내 메일 설정" onClick={() => openImage("mail")}>
+            ✉ 안내 메일{s.mail?.enabled === false ? " 끔" : ""}
           </ToolBtn>
         </>
       );
@@ -345,6 +350,7 @@ export function PageEditor({
   userId,
   aside,
   termOptions,
+  site,
 }: {
   id: string;
   title: string;
@@ -352,6 +358,7 @@ export function PageEditor({
   userId: string;
   aside: ReactNode;
   termOptions: TermOption[];
+  site: PublicSite;
 }) {
   const [title, setTitle] = useState(initialTitle);
   const [theme, setTheme] = useState<Theme>(content.theme ?? "indigo");
@@ -445,13 +452,13 @@ export function PageEditor({
         canDuplicate={(s) => s.type !== "form"}
         canAdd={(type) => (type === "form" && sections.some((s) => s.type === "form") ? "신청 폼은 프로모션에 하나만 넣을 수 있어요." : null)}
         toolKeys={["main", "game"]}
-        modalTitle={(key) => (key === "game" ? "이벤트 템플릿 고르기" : key === "terms" ? "신청 폼 약관" : key === "fields" ? "신청 폼 필드" : "이미지")}
+        modalTitle={(key) => (key === "game" ? "이벤트 템플릿 고르기" : key === "terms" ? "신청 폼 약관" : key === "mail" ? "신청자 안내 메일" : key === "fields" ? "신청 폼 필드" : "이미지")}
         renderBlock={(s, _i, { onImage, ed }) => (
           <SectionView s={s} theme={t} ed={ed} onImage={onImage} form={<MockForm label={s.label || formLabel} theme={theme} fields={s.fields} required={s.required} event={hasEvent(sections)} terms={previewTerms(s, termOptions)} agreeAll={!!s.terms && !!s.agree_all} />} />
         )}
         renderTools={(s, update, openImage) => <SectionTools s={s} update={update} openImage={openImage} termOptions={termOptions} />}
         renderImage={(s, key, update, close) =>
-          key === "fields" ? <FieldSettings s={s} update={update} /> : key === "terms" ? <TermsPicker s={s} update={update} options={termOptions} /> : key === "game" ? <GameMaker s={s} update={update} close={close} context={[title, content.subheadline].filter(Boolean).join("\n")} /> : <SectionImage s={s} k={key} update={update} userId={userId} />
+          key === "fields" ? <FieldSettings s={s} update={update} /> : key === "mail" ? <ApplicantMailSettings s={s} update={update} site={site} pageId={id} pageTitle={title} /> : key === "terms" ? <TermsPicker s={s} update={update} options={termOptions} /> : key === "game" ? <GameMaker s={s} update={update} close={close} context={[title, content.subheadline].filter(Boolean).join("\n")} /> : <SectionImage s={s} k={key} update={update} userId={userId} />
         }
       />
       <p className="mt-3 text-center text-xs text-slate-400">글자를 누르면 바로 고칠 수 있어요. 요소를 누르면 위쪽에 메뉴가, 이미지를 누르면 이미지 창이 열려요. Ctrl+S로 저장해요.</p>

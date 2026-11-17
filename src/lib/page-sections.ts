@@ -3,6 +3,7 @@ import type { PageContent } from "./types";
 import { cleanFields, type LeadField } from "./lead-fields";
 import { sanitizeGame, type EventGame } from "./event-game";
 import { sanitizeFormTerms, type FormTerm } from "./terms";
+import { sanitizeApplicantMail, type ApplicantMail } from "./lead-mail-template";
 
 export const SECTION_TYPES = ["hero", "image", "benefits", "cards", "text", "quote", "button", "form", "event", "divider"] as const;
 export type SectionType = (typeof SECTION_TYPES)[number];
@@ -39,6 +40,8 @@ export type Section = {
   terms?: FormTerm[];
   /** Show an "agree to all" checkbox above the terms (form sections only). */
   agree_all?: boolean;
+  /** Thank-you email to the applicant (form sections only). Missing means on, with the default text. */
+  mail?: ApplicantMail;
   /** AI-made game (event sections only). */
   game?: EventGame;
 };
@@ -109,6 +112,7 @@ export function sanitizeSections(input: unknown): Section[] {
         ...(r.type === "form" && cleanFields(r.fields).length ? { fields: cleanFields(r.fields) } : {}),
         ...(r.type === "form" && Array.isArray(r.required) ? { required: cleanFields(r.required) } : {}),
         ...(r.type === "form" && Array.isArray(r.terms) ? { terms: sanitizeFormTerms(r.terms), agree_all: r.agree_all === true } : {}),
+        ...(r.type === "form" && sanitizeApplicantMail(r.mail) ? { mail: sanitizeApplicantMail(r.mail) } : {}),
         ...(r.type === "event" && sanitizeGame(r.game) ? { game: sanitizeGame(r.game) } : {}),
         items: Array.isArray(r.items)
           ? r.items.slice(0, 12).map((it) => {

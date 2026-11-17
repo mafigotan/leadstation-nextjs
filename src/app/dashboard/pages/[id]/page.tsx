@@ -10,6 +10,7 @@ import { CopyButton } from "@/components/copy-button";
 import { SlugForm } from "./slug-form";
 import { PeriodForm } from "./period-form";
 import { listTermOptions } from "@/lib/terms";
+import { PUBLIC_SITE_COLUMNS, type PublicSite } from "@/lib/user-site";
 
 export default async function EditPage({
   params,
@@ -27,6 +28,7 @@ export default async function EditPage({
   if (!page) notFound();
 
   const termOptions = await listTermOptions(supabase, site.id);
+  const { data: siteInfo } = await supabase.from("sites").select(PUBLIC_SITE_COLUMNS).eq("id", site.id).single<PublicSite>();
   const { count } = await supabase
     .from("leads")
     .select("id", { count: "exact", head: true })
@@ -67,6 +69,7 @@ export default async function EditPage({
         content={page.content}
         userId={user.id}
         termOptions={termOptions}
+        site={siteInfo ?? ({ ...site, logo_url: "", company_name: "", ceo_name: "", business_no: "", address: "", contact_phone: "", contact_email: "" } as PublicSite)}
         aside={
           <div className="space-y-4">
             <div className="card space-y-3 p-5">
