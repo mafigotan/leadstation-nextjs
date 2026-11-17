@@ -118,22 +118,8 @@ function SectionTools({ s, update, openImage, termOptions }: { s: Section; updat
       return <ToolBtn label="이벤트 템플릿 고르기" onClick={() => openImage("game")}>🎮 {s.game ? "템플릿 바꾸기" : "템플릿 고르기"}</ToolBtn>;
     case "form": {
       const { fields: current, required } = formFields(s.fields, s.required);
-      const toggle = (k: LeadField) => {
-        const next = current.includes(k) ? current.filter((f) => f !== k) : [...current, k];
-        if (!next.length) return;
-        // A field added from the toolbar is required unless it is 기타.
-        const req = next.filter((f) => (f === k ? k !== "message" : required.includes(f)));
-        update({ fields: LEAD_FIELDS.map((f) => f.key).filter((f) => next.includes(f)), required: req });
-      };
       return (
         <>
-          <span className="ml-1 text-xs text-slate-400">필드</span>
-          {LEAD_FIELDS.map((f) => (
-            <ToolBtn key={f.key} label={`${f.label} 필드 ${current.includes(f.key) ? "빼기" : "넣기"}`} active={current.includes(f.key)} onClick={() => toggle(f.key)}>
-              {f.label}
-            </ToolBtn>
-          ))}
-          <span className="ml-1 text-xs text-slate-400">|</span>
           <ToolBtn label="필드별 필수 입력 설정" onClick={() => openImage("fields")}>
             ✱ 필수 {required.length}/{current.length}
           </ToolBtn>
