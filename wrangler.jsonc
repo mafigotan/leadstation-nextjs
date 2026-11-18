@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Production Worker (main branch). Name must match the Worker in the Cloudflare dashboard.
+  "name": "leadstation-nextjs",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  // AI generation waits on network (not counted), but rendering/Excel/image crop use CPU.
+  "limits": { "cpu_ms": 300000 },
+  "observability": { "enabled": true },
+  // Keep variables set in the dashboard; only APP_ENV comes from this file.
+  "keep_vars": true,
+  "vars": { "APP_ENV": "production" },
+  "env": {
+    // Staging Worker (staging branch): deploy with `--env staging`.
+    "staging": {
+      "name": "leadstation-nextjs-staging",
+      "limits": { "cpu_ms": 300000 },
+      "observability": { "enabled": true },
+      "keep_vars": true,
+      "vars": { "APP_ENV": "staging" }
+    }
+  }
+}

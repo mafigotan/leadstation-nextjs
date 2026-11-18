@@ -1,4 +1,5 @@
 /** Reads and checks the GA environment variables (no secrets are returned). */
+import { appEnv, gitBranch, gitSha } from "@/lib/deploy-env";
 
 function clean(v: string | undefined): string {
   return (v ?? "").trim().replace(/^["']|["']$/g, "").trim();
@@ -60,9 +61,5 @@ export function gaChecks(): GaCheck[] {
 }
 
 export function deploymentLabel(): string {
-  const env = process.env.VERCEL_ENV || process.env.NEXT_PUBLIC_VERCEL_ENV || "local";
-  const ref = process.env.VERCEL_GIT_COMMIT_REF;
-  const sha = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7);
-  const url = process.env.VERCEL_URL;
-  return [env, ref, sha, url].filter(Boolean).join(" · ");
+  return [appEnv(), gitBranch(), gitSha(), process.env.VERCEL_URL].filter(Boolean).join(" · ");
 }

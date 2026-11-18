@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSite } from "@/lib/supabase/server";
+import { isProduction } from "@/lib/deploy-env";
 import { limitMessage, metered } from "@/lib/usage";
 import { generatePageContent } from "@/lib/ai/generate-page";
 import { fillTemplateFields, suggestFieldText } from "@/lib/ai/generate-game";
@@ -42,7 +43,7 @@ export async function createPage(_: FormState, formData: FormData): Promise<Form
   } catch (e) {
     console.error("generatePageContent failed", e);
     // Outside production, show the cause so staging problems can be found without the logs.
-    const cause = process.env.VERCEL_ENV === "production" ? "" : ` (원인: ${!process.env.ANTHROPIC_API_KEY ? "ANTHROPIC_API_KEY 환경 변수가 없어요" : e instanceof Error ? e.message.slice(0, 300) : String(e)})`;
+    const cause = isProduction() ? "" : ` (원인: ${!process.env.ANTHROPIC_API_KEY ? "ANTHROPIC_API_KEY 환경 변수가 없어요" : e instanceof Error ? e.message.slice(0, 300) : String(e)})`;
     return { error: limitMessage(e) ?? (e instanceof Error && e.message.startsWith("AI") ? e.message : "페이지 생성 중 오류가 발생했어요. 잠시 후 다시 시도해 주세요." + cause) };
   }
 

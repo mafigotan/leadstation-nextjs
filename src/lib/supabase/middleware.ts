@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { AUTH_HINT_COOKIE, syncAuthHint } from "@/lib/auth-hint";
+import { appEnv, gitBranch, gitSha } from "@/lib/deploy-env";
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -13,8 +14,8 @@ export async function updateSession(request: NextRequest) {
     ].filter(Boolean);
     return new NextResponse(
       `이 배포에 Supabase 환경 변수가 없어요: ${missing.join(", ")}\n` +
-        `배포 환경: ${process.env.VERCEL_ENV ?? "?"} / 브랜치: ${process.env.VERCEL_GIT_COMMIT_REF ?? "?"} / 커밋: ${(process.env.VERCEL_GIT_COMMIT_SHA ?? "?").slice(0, 7)}\n` +
-        "Vercel 환경 변수의 환경과 브랜치를 확인하고, 빌드 캐시 없이 다시 배포해주세요.",
+        `배포 환경: ${appEnv()} / 브랜치: ${gitBranch() || "?"} / 커밋: ${gitSha() || "?"}\n` +
+        "배포 설정의 환경 변수(빌드 변수 포함)를 확인하고, 빌드 캐시 없이 다시 배포해주세요.",
       { status: 500, headers: { "content-type": "text/plain; charset=utf-8" } },
     );
   }

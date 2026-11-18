@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { isSuperAdmin, requireSite } from "@/lib/supabase/server";
 import { userUrl } from "@/lib/site";
+import { isProduction } from "@/lib/deploy-env";
 import { getRealtimeUsers } from "@/lib/analytics/ga";
 import { MAX_DAYS, PRESETS, kstToday, parsePeriod, periodLabel, periodQuery } from "@/lib/analytics/period";
 import { buildSiteReport, KIND_LABEL, type ContentKind } from "@/lib/analytics/report";
@@ -47,7 +48,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const { supabase, site } = await requireSite();
   const [res, live, superAdmin] = await Promise.all([buildSiteReport(supabase, site, period), getRealtimeUsers(site.handle), isSuperAdmin(supabase)]);
   // Setup diagnostics: on staging/previews for everyone, on production only for platform admins.
-  const showStatus = superAdmin || process.env.VERCEL_ENV !== "production";
+  const showStatus = superAdmin || !isProduction();
   const address = userUrl(site.handle).replace(/^https?:\/\//, "").replace(/\/$/, "");
   const kindQ = (k: string) => (k !== "all" ? `&kind=${k}` : "");
   const q = (r: number, k: string) => `/dashboard/analytics?range=${r}${kindQ(k)}`;

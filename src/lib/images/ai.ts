@@ -1,5 +1,5 @@
 import "server-only";
-import sharp from "sharp";
+import jpeg from "jpeg-js";
 import { addUsage } from "@/lib/usage";
 import { IMAGE_RATIOS, IMAGE_STYLES, type ImageRatio, type ImageStyle } from "./options";
 
@@ -7,7 +7,7 @@ async function request(model: string, prompt: string, size: string) {
   const res = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model, prompt, n: 1, size, quality: "medium", output_format: "png" }),
+    body: JSON.stringify({ model, prompt, n: 1, size, quality: "medium", output_format: "jpeg" }),
   });
   const json = (await res.json().catch(() => ({}))) as {
     data?: { b64_json?: string }[];
@@ -25,7 +25,7 @@ async function request(model: string, prompt: string, size: string) {
  */
 export async function generateImage(description: string, style: ImageStyle | "", ratio: ImageRatio) {
   if (!process.env.OPENAI_API_KEY) {
-    throw new Error("AI 이미지 설정이 없어요. Vercel 환경 변수에 OPENAI_API_KEY를 넣고 Redeploy 해주세요.");
+    throw new Error("AI 이미지 설정이 없어요. 환경 변수에 OPENAI_API_KEY를 넣고 다시 배포해 주세요.");
   }
   let prompt = description.trim().slice(0, 3000);
   if (!prompt) throw new Error("이미지 설명을 입력해 주세요.");
@@ -54,20 +54,29 @@ export async function generateImage(description: string, style: ImageStyle | "",
   return cropToRatio(Buffer.from(b64, "base64"), rw, rh);
 }
 
-export async function cropToRatio(input: Buffer, rw: number, rh: number) {
-  const img = sharp(input);
-  const meta = await img.metadata();
-  const w = meta.width ?? 1024;
-  const h = meta.height ?? 1024;
+/**
+ * Center-crops a JPEG to rw:rh and re-encodes it. Pure JS (jpeg-js) so it also runs
+ * on Cloudflare Workers, where native modules like sharp are not available.
+ */
+export async function cropToRatio(input: Buffer | Uint8Array, rw: number, rh: number) {
+  const img = jpeg.decode(input, { useTArray: true, formatAsRGBA: true, maxResolutionInMP: 40, maxMemoryUsageInMB: 256 });
+  const w = img.width;
+  const h = img.height;
   let cw = w;
   let ch = Math.round((w * rh) / rw);
   if (ch > h) {
     ch = h;
     cw = Math.round((h * rw) / rh);
   }
-  const bytes = await img
-    .extract({ left: Math.floor((w - cw) / 2), top: Math.floor((h - ch) / 2), width: cw, height: ch })
-    .jpeg({ quality: 86, mozjpeg: true })
-    .toBuffer();
+  // Already the right ratio: keep the original bytes (no quality loss, no CPU).
+  if (cw === w && ch === h) return { bytes: Buffer.from(input), width: w, height: h };
+  const left = Math.floor((w - cw) / 2);
+  const top = Math.floor((h - ch) / 2);
+  const out = new Uint8Array(cw * ch * 4);
+  for (let y = 0; y < ch; y++) {
+    const from = ((top + y) * w + left) * 4;
+    out.set(img.data.subarray(from, from + cw * 4), y * cw * 4);
+  }
+  const bytes = jpeg.encode({ data: out, width: cw, height: ch }, 86).data;
   return { bytes, width: cw, height: ch };
 }
