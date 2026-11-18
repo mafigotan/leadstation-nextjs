@@ -16,6 +16,8 @@
     // Staging Worker (staging branch): deploy with `--env staging`.
     "staging": {
       "name": "leadstation-nextjs-staging",
+      // Staging is reached at leadstation-nextjs-staging.<account>.workers.dev
+      "workers_dev": true,
       "limits": { "cpu_ms": 300000 },
       "observability": { "enabled": true },
       "keep_vars": true,
