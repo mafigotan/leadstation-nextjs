@@ -6,8 +6,9 @@ import { LoginForm } from "./login-form";
 
 export const metadata = { title: "로그인 | LEADstation" };
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ site?: string }> }) {
-  const raw = String((await searchParams).site ?? "").toLowerCase();
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ site?: string; reset?: string }> }) {
+  const params = await searchParams;
+  const raw = String(params.site ?? "").toLowerCase();
   const site = HANDLE_RE.test(raw) ? raw : undefined;
   const supabase = await createClient();
   const {
@@ -22,7 +23,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           LEAD<span className="text-indigo-600">station</span>
         </Link>
         <div className="card p-6">
-          <LoginForm site={site} />
+          <LoginForm site={site} initialMode={params.reset ? "reset" : "signin"} />
         </div>
       </div>
     </main>

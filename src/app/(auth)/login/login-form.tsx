@@ -2,13 +2,58 @@
 
 import { useActionState, useState } from "react";
 import { signIn, signUp, type AuthState } from "./actions";
+import { requestPasswordReset, type PasswordState } from "../reset-password/actions";
 
-type Mode = "signin" | "signup";
+type Mode = "signin" | "signup" | "reset";
 
-export function LoginForm({ site }: { site?: string }) {
-  const [mode, setMode] = useState<Mode>("signin");
+export function LoginForm({ site, initialMode = "signin" }: { site?: string; initialMode?: Mode }) {
+  const [mode, setMode] = useState<Mode>(initialMode);
   // A fresh form per mode, so messages from one mode don't carry over to the other.
+  if (mode === "reset") return <ResetForm setMode={setMode} />;
   return <AuthForm key={mode} mode={mode} setMode={setMode} site={site} />;
+}
+
+function ResetForm({ setMode }: { setMode: (m: Mode) => void }) {
+  const [state, action, pending] = useActionState<PasswordState, FormData>(requestPasswordReset, {});
+
+  if (state.sentTo) {
+    return (
+      <div className="space-y-4 text-center">
+        <h1 className="text-lg font-bold">재설정 메일을 보냈어요</h1>
+        <p className="text-sm text-slate-600">
+          <span className="font-semibold text-slate-900">{state.sentTo}</span> 으로 가입된 계정이 있으면 비밀번호 재설정 링크가 도착해요.
+          <br />
+          메일의 링크를 누르면 새 비밀번호를 정할 수 있어요.
+        </p>
+        <p className="rounded-lg bg-slate-50 p-3 text-xs text-slate-500">메일이 보이지 않으면 스팸함을 확인해주세요.</p>
+        <button type="button" className="btn-secondary w-full" onClick={() => setMode("signin")}>
+          로그인 화면으로
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form action={action} className="space-y-4">
+      <div className="mb-2">
+        <h1 className="text-lg font-bold">비밀번호 재설정</h1>
+        <p className="mt-1 text-sm text-slate-500">가입한 이메일을 입력하면 비밀번호를 다시 정할 수 있는 링크를 보내드려요.</p>
+      </div>
+      <div>
+        <label className="label" htmlFor="reset-email">이메일</label>
+        <input id="reset-email" name="email" type="email" required autoComplete="email" className="input" />
+      </div>
+      {state.error && <p className="text-sm text-red-600">{state.error}</p>}
+      <button type="submit" disabled={pending} className="btn-primary w-full">
+        {pending ? "보내는 중..." : "재설정 메일 받기"}
+      </button>
+      <p className="text-center text-sm text-slate-500">
+        <button type="button" className="font-medium text-indigo-600 hover:underline" onClick={() => setMode("signin")}>
+          로그인으로 돌아가기
+        </button>
+      </p>
+    </form>
+  );
 }
 
 function AuthForm({ mode, setMode, site }: { mode: Mode; setMode: (m: Mode) => void; site?: string }) {
@@ -66,6 +111,11 @@ function AuthForm({ mode, setMode, site }: { mode: Mode; setMode: (m: Mode) => v
           className="input"
         />
         {signup && <p className="mt-1 text-xs text-slate-500">8자 이상 입력해주세요.</p>}
+        {!signup && (
+          <button type="button" className="mt-1.5 text-xs font-medium text-slate-500 hover:text-indigo-600 hover:underline" onClick={() => setMode("reset")}>
+            비밀번호를 잊으셨나요?
+          </button>
+        )}
       </div>
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}
       <button type="submit" disabled={pending} className="btn-primary w-full">

@@ -4,6 +4,7 @@ import { requireSite } from "@/lib/supabase/server";
 import { daysLeft, endsWithinTwoMonths, rootDomain, siteUrl, userUrl } from "@/lib/site";
 import { HandleRequestPanel, MyInfoForm, SiteForm, SiteInfoForm, MembersPanel, SiteSwitcher, type HandleRequest, type Member, type Invite } from "./forms";
 import type { SiteInfo } from "./actions";
+import { ChangePasswordForm } from "@/components/password-forms";
 
 export const metadata = { title: "마이 프로필 | LEADstation" };
 
@@ -42,6 +43,11 @@ export default async function ProfilePage() {
       <section className="card p-6">
         <h2 className="mb-4 font-bold">내 정보</h2>
         <MyInfoForm profile={profile} />
+      </section>
+
+      <section className="card p-6">
+        <h2 className="mb-4 font-bold">비밀번호 변경</h2>
+        <ChangePasswordForm />
       </section>
 
       <section className="card p-6">
