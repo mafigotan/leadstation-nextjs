@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { IMAGE_RATIOS, IMAGE_STYLES, type ImageRatio } from "@/lib/images/options";
-import { generateAiImage, recordUpload } from "@/app/dashboard/media/actions";
+import { checkUploadRoom, generateAiImage, recordUpload } from "@/app/dashboard/media/actions";
 import { MediaPicker } from "./media-picker";
 
 const STYLE_KEY = "ls-ai-image-style";
@@ -102,6 +102,8 @@ export function AiImageForm({
 export async function uploadToLibrary(userId: string, file: File): Promise<{ url?: string; error?: string }> {
   if (!file.type.startsWith("image/")) return { error: "이미지 파일만 올릴 수 있어요." };
   if (file.size > 5 * 1024 * 1024) return { error: "5MB 이하 이미지만 올릴 수 있어요." };
+  const room = await checkUploadRoom(file.size);
+  if (room.error) return { error: room.error };
   let width: number | null = null;
   let height: number | null = null;
   try {
@@ -116,7 +118,7 @@ export async function uploadToLibrary(userId: string, file: File): Promise<{ url
   const { error } = await supabase.storage.from("newsletter-images").upload(path, file, { contentType: file.type });
   if (error) return { error: "업로드하지 못했어요: " + error.message };
   const url = supabase.storage.from("newsletter-images").getPublicUrl(path).data.publicUrl;
-  await recordUpload(url, path, width, height);
+  await recordUpload(url, path, width, height, file.size);
   return { url };
 }
 

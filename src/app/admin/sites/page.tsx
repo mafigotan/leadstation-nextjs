@@ -1,18 +1,19 @@
 import Link from "next/link";
 import { requireSuperAdmin } from "@/lib/supabase/server";
 import { todayKst, userUrl } from "@/lib/site";
+import { planName } from "@/lib/plans";
 import { Pager, SiteStatus, Table, Th, fmtDate, won } from "../ui";
 
 const SIZE = 30;
 
 type Row = {
   id: string; handle: string; name: string; status: string; active_from: string | null; active_until: string | null;
-  service_started_on: string | null; created_at: string; site_members: { count: number }[];
+  service_started_on: string | null; created_at: string; plan: string | null; site_members: { count: number }[];
 };
 
-function addDays(d: string, n: number) {
+function twoMonthsFrom(d: string) {
   const t = new Date(d + "T00:00:00Z");
-  t.setUTCDate(t.getUTCDate() + n);
+  t.setUTCMonth(t.getUTCMonth() + 2);
   return t.toISOString().slice(0, 10);
 }
 
@@ -26,14 +27,14 @@ export default async function AdminSites({ searchParams }: { searchParams: Promi
 
   let query = supabase
     .from("sites")
-    .select("id, handle, name, status, active_from, active_until, service_started_on, created_at, site_members(count)", { count: "exact" })
+    .select("id, handle, name, status, active_from, active_until, service_started_on, created_at, plan, site_members(count)", { count: "exact" })
     .order("created_at", { ascending: false })
     .range((page - 1) * SIZE, page * SIZE - 1);
   if (q) query = query.or(`handle.ilike.%${q}%,name.ilike.%${q}%`);
   if (filter === "active") query = query.eq("status", "active").or(`active_until.is.null,active_until.gte.${today}`);
   if (filter === "inactive") query = query.eq("status", "inactive");
   if (filter === "expired") query = query.lt("active_until", today);
-  if (filter === "expiring") query = query.eq("status", "active").gte("active_until", today).lte("active_until", addDays(today, 30));
+  if (filter === "expiring") query = query.eq("status", "active").gte("active_until", today).lte("active_until", twoMonthsFrom(today));
   const { data, count, error } = await query;
   const rows = (data ?? []) as Row[];
 
@@ -49,7 +50,7 @@ export default async function AdminSites({ searchParams }: { searchParams: Promi
   for (const p of pays ?? []) if (!lastPay.has(p.site_id)) lastPay.set(p.site_id, p);
 
   const href = (p: number) => `/admin/sites?${new URLSearchParams({ q, filter, page: String(p) })}`;
-  const filters: [string, string][] = [["all", "전체"], ["active", "활성"], ["expiring", "30일 안에 만료"], ["expired", "기간 만료"], ["inactive", "비활성"]];
+  const filters: [string, string][] = [["all", "전체"], ["active", "활성"], ["expiring", "2개월 안에 만료"], ["expired", "기간 만료"], ["inactive", "비활성"]];
 
   return (
     <div className="space-y-4">
@@ -64,7 +65,7 @@ export default async function AdminSites({ searchParams }: { searchParams: Promi
         </form>
       </div>
       {error && <p className="text-sm text-red-600">불러오지 못했어요: {error.message}</p>}
-      <Table head={<><Th>사이트</Th><Th>상태</Th><Th>서비스 개시일</Th><Th>이용 기간</Th><Th right>멤버</Th><Th>최근 결제</Th><Th>생성일</Th></>}>
+      <Table head={<><Th>사이트</Th><Th>상태</Th><Th>요금제</Th><Th>서비스 개시일</Th><Th>이용 기간</Th><Th right>멤버</Th><Th>최근 결제</Th><Th>생성일</Th></>}>
         {rows.map((r) => {
           const lp = lastPay.get(r.id);
           return (
@@ -75,6 +76,7 @@ export default async function AdminSites({ searchParams }: { searchParams: Promi
                 {handlePending.has(r.id) && <Link href={`/admin/sites/${r.id}`} className="mt-0.5 inline-block rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">주소 변경 요청</Link>}
               </td>
               <td className="px-3 py-2"><SiteStatus site={r} /></td>
+              <td className="px-3 py-2">{planName(r.plan)}</td>
               <td className="whitespace-nowrap px-3 py-2">{fmtDate(r.service_started_on)}</td>
               <td className="whitespace-nowrap px-3 py-2">{r.active_from || r.active_until ? `${fmtDate(r.active_from)} ~ ${fmtDate(r.active_until)}` : "제한 없음"}</td>
               <td className="px-3 py-2 text-right">{r.site_members?.[0]?.count ?? 0}</td>
@@ -83,7 +85,7 @@ export default async function AdminSites({ searchParams }: { searchParams: Promi
             </tr>
           );
         })}
-        {!rows.length && <tr><td colSpan={7} className="px-3 py-8 text-center text-slate-400">사이트가 없어요.</td></tr>}
+        {!rows.length && <tr><td colSpan={8} className="px-3 py-8 text-center text-slate-400">사이트가 없어요.</td></tr>}
       </Table>
       <Pager page={page} total={count ?? 0} size={SIZE} href={href} />
     </div>

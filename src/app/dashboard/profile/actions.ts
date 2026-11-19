@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireSite, requireSiteAdmin, requireUser } from "@/lib/supabase/server";
 import { validateHandle } from "@/lib/site";
+import { checkLimit, limitMessage } from "@/lib/usage";
 import { readPersonalInfo, type FormState } from "@/app/welcome/actions";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -97,6 +98,19 @@ export async function addMember(_: FormState, formData: FormData): Promise<FormS
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const role = formData.get("role") === "admin" ? "admin" : "member";
   if (!EMAIL_RE.test(email)) return { error: "이메일 주소를 확인해주세요." };
+  // Member limit (members and open invites): only a new person counts.
+  const [{ data: members }, { data: invited }] = await Promise.all([
+    supabase.rpc("site_member_list", { p_site: site.id }),
+    supabase.from("site_invites").select("id").eq("site_id", site.id).eq("email", email).limit(1),
+  ]);
+  const known = ((members ?? []) as { email: string }[]).some((m) => m.email?.toLowerCase() === email) || !!invited?.length;
+  if (!known) {
+    try {
+      await checkLimit(supabase, site.id, "members", 1);
+    } catch (e) {
+      return { error: limitMessage(e) ?? "멤버 한도를 확인하지 못했어요." };
+    }
+  }
   const { data, error } = await supabase.rpc("add_site_member", { p_site: site.id, p_email: email, p_role: role });
   if (error) {
     console.error("add member failed", error);

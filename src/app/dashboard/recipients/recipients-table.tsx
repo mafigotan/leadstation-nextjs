@@ -28,7 +28,8 @@ export function RecipientsTable({ recipients, groups, total }: { recipients: Row
     if (action === "delete" && !confirm(`${selected.length}명을 삭제할까요? 발송 기록의 주소는 남아요.`)) return;
     if ((action === "add-group" || action === "remove-group") && !groupId) return alert("그룹을 먼저 골라주세요.");
     start(async () => {
-      await bulkAction(selected, action, groupId);
+      const res = await bulkAction(selected, action, groupId);
+      if (res?.error) return alert(res.error);
       setSelected([]);
     });
   };

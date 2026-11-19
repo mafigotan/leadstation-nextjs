@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSuperAdmin } from "@/lib/supabase/server";
-import { validateHandle } from "@/lib/site";
+import { todayKst, validateHandle } from "@/lib/site";
+import { LIMIT_COLUMNS, addDays, type LimitColumn } from "@/lib/plans";
 
 export type AdminState = { error?: string; ok?: boolean; message?: string };
 
@@ -42,14 +43,42 @@ export async function updateSiteAdmin(siteId: string, _: AdminState, formData: F
       active_until,
       service_started_on: date(formData.get("service_started_on")),
       admin_memo: String(formData.get("admin_memo") ?? "").slice(0, 2000),
-      newsletter_limit: limit(formData.get("newsletter_limit")),
-      text_token_limit: limit(formData.get("text_token_limit")),
-      image_token_limit: limit(formData.get("image_token_limit")),
     })
     .eq("id", siteId);
   if (error) return { error: "저장하지 못했어요: " + error.message };
   revalidatePath("/admin", "layout");
   return { ok: true, message: "저장했어요." };
+}
+
+const PLAN_CODES = ["free", "basic", "standard", "pro", "custom"];
+
+/** Per-site limit values from a form (empty = use the plan's value). Storage is entered in GB. */
+function readLimits(formData: FormData, prefix = "") {
+  const out = {} as Record<LimitColumn, number | null>;
+  for (const col of LIMIT_COLUMNS) {
+    if (col === "storage_mb_limit") {
+      const gb = String(formData.get(prefix + col) ?? "").replace(/[^\d.]/g, "");
+      out[col] = gb ? Math.round(Number(gb) * 1024) : null;
+    } else out[col] = limit(formData.get(prefix + col));
+  }
+  return out;
+}
+
+const NO_OVERRIDES = Object.fromEntries(LIMIT_COLUMNS.map((c) => [c, null])) as Record<LimitColumn, null>;
+
+/** Super admin sets a site's plan and its own limit values (without a payment). */
+export async function updateSitePlan(siteId: string, _: AdminState, formData: FormData): Promise<AdminState> {
+  const { supabase } = await requireSuperAdmin();
+  const planRaw = String(formData.get("plan") ?? "");
+  const plan = PLAN_CODES.includes(planRaw) ? planRaw : null;
+  const { data: site } = await supabase.from("sites").select("plan").eq("id", siteId).single();
+  const changed = (site?.plan ?? null) !== plan;
+  // A new plan starts clean: earlier per-site values are dropped (CUSTOM keeps what was typed).
+  const limits = changed && plan !== "custom" ? NO_OVERRIDES : readLimits(formData);
+  const { error } = await supabase.from("sites").update({ plan, ...limits }).eq("id", siteId);
+  if (error) return { error: "저장하지 못했어요: " + error.message };
+  revalidatePath("/admin", "layout");
+  return { ok: true, message: changed && plan !== "custom" ? "요금제를 바꿨어요. 개별 조정값은 비우고 새 요금제 한도를 적용했어요." : "저장했어요." };
 }
 
 const METHODS = ["transfer", "card", "cash", "other"];
@@ -64,11 +93,16 @@ export async function addPayment(siteId: string, _: AdminState, formData: FormDa
   const period_from = date(formData.get("period_from"));
   const period_to = date(formData.get("period_to"));
   const method = String(formData.get("method") ?? "transfer");
+  const planRaw = String(formData.get("plan") ?? "");
+  const plan = PLAN_CODES.includes(planRaw) ? planRaw : null;
   if (!paid_on) return { error: "결제일을 입력해주세요." };
-  if (!Number.isFinite(amount) || amount <= 0) return { error: "결제 금액을 입력해주세요." };
+  if (!Number.isFinite(amount) || amount < 0 || (amount === 0 && plan !== "free")) return { error: "결제 금액을 입력해주세요." };
   if (period_from && period_to && period_from > period_to) return { error: "이용 기간 시작일이 종료일보다 늦어요." };
+  if (plan && !period_to) return { error: "요금제를 적용하려면 이용 기간을 입력해주세요." };
+  const { data: site } = await supabase.from("sites").select("plan, active_from, active_until, service_started_on").eq("id", siteId).single();
   const { error } = await supabase.from("site_payments").insert({
     site_id: siteId,
+    plan,
     paid_on,
     amount,
     method: METHODS.includes(method) ? method : "other",
@@ -79,9 +113,27 @@ export async function addPayment(siteId: string, _: AdminState, formData: FormDa
   });
   if (error) return { error: "저장하지 못했어요: " + error.message };
 
-  // Optionally extend the site's period to the paid period and switch it on.
-  if (formData.get("extend") === "on" && period_to) {
-    const { data: site } = await supabase.from("sites").select("active_from, active_until, service_started_on").eq("id", siteId).single();
+  const today = todayKst();
+  if (plan) {
+    // Same plan paid right after the current period: the period is extended.
+    // Anything else (upgrade, downgrade, a gap): the earlier plan and period are dropped and the new ones apply now.
+    const continues = site?.plan === plan && !!site.active_until && !!period_from && period_from <= addDays(site.active_until, 1) && site.active_until >= today;
+    const from = continues ? site!.active_from : period_from && period_from <= today ? period_from : today;
+    const limits = plan === "custom" ? readLimits(formData, "custom_") : site?.plan === plan ? {} : NO_OVERRIDES;
+    const { error: siteErr } = await supabase
+      .from("sites")
+      .update({
+        plan,
+        ...limits,
+        status: "active",
+        active_from: from,
+        active_until: continues && site!.active_until! > period_to! ? site!.active_until : period_to,
+        service_started_on: site?.service_started_on ?? from ?? paid_on,
+      })
+      .eq("id", siteId);
+    if (siteErr) return { error: "결제는 기록했지만 요금제를 적용하지 못했어요: " + siteErr.message };
+  } else if (formData.get("extend") === "on" && period_to) {
+    // No plan picked: only extend the period, as before.
     await supabase
       .from("sites")
       .update({
@@ -93,7 +145,7 @@ export async function addPayment(siteId: string, _: AdminState, formData: FormDa
       .eq("id", siteId);
   }
   revalidatePath("/admin", "layout");
-  return { ok: true, message: "결제를 기록했어요." };
+  return { ok: true, message: plan ? `결제를 기록하고 ${plan.toUpperCase()} 요금제를 적용했어요.` : "결제를 기록했어요." };
 }
 
 export async function deletePayment(id: string) {

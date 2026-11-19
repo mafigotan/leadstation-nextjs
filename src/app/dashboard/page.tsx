@@ -64,6 +64,7 @@ export default async function DashboardHome() {
       usage={usage}
       limitRequested={!!limitReq.data?.length}
       visits={visits}
+      membersFull={usage.some((u) => u.kind === "members" && u.limit_value !== null && u.used >= u.limit_value)}
     />
   );
 }

@@ -1,6 +1,7 @@
 import "server-only";
 import jpeg from "jpeg-js";
 import { addUsage } from "@/lib/usage";
+import { IMAGE_TOKENS } from "@/lib/plans";
 import { IMAGE_RATIOS, IMAGE_STYLES, type ImageRatio, type ImageStyle } from "./options";
 
 async function request(model: string, prompt: string, size: string) {
@@ -14,8 +15,8 @@ async function request(model: string, prompt: string, size: string) {
     error?: { message?: string; code?: string };
     usage?: { total_tokens?: number };
   };
-  // Image tokens are counted for successful images (OpenAI reports them; estimate if it doesn't).
-  if (res.status === 200) addUsage("image", json.usage?.total_tokens ?? (size === "1024x1024" ? 1100 : 1650));
+  // Each successful image counts as a fixed number of AI tokens toward the site's combined AI limit.
+  if (res.status === 200) addUsage("image", IMAGE_TOKENS);
   return { status: res.status, json };
 }
 

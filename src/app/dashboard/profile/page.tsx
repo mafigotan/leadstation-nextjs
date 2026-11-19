@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { planName } from "@/lib/plans";
 import { requireSite } from "@/lib/supabase/server";
 import { daysLeft, endsWithinTwoMonths, rootDomain, siteUrl, userUrl } from "@/lib/site";
 import { HandleRequestPanel, MyInfoForm, SiteForm, SiteInfoForm, MembersPanel, SiteSwitcher, type HandleRequest, type Member, type Invite } from "./forms";
@@ -77,6 +79,8 @@ export default async function ProfilePage() {
         <section className="card p-6">
           <h2 className="font-bold">서비스 이용 기간</h2>
           <dl className="mt-3 grid grid-cols-[7rem_1fr] gap-y-1.5 text-sm">
+            <dt className="text-slate-500">요금제</dt>
+            <dd>{planName(site.plan ?? null)} <Link href="/dashboard/plan" className="ml-1 text-indigo-600 hover:underline">요금제 보기</Link></dd>
             <dt className="text-slate-500">서비스 개시일</dt>
             <dd>{site.service_started_on ?? "-"}</dd>
             <dt className="text-slate-500">이용 기간</dt>

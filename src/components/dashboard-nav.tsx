@@ -13,6 +13,7 @@ const items = [
   { href: "/dashboard/recipients", label: "수신자" },
   { href: "/dashboard/media", label: "이미지" },
   { href: "/dashboard/analytics", label: "방문 통계" },
+  { href: "/dashboard/plan", label: "요금제" },
   { href: "/dashboard/profile", label: "마이 프로필" },
 ];
 

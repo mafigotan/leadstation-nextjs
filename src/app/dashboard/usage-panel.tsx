@@ -3,19 +3,24 @@
 import { useState, useTransition } from "react";
 import { Modal } from "@/components/visual-editor";
 import { requestLimitIncrease } from "./actions";
+import { formatBytes } from "@/lib/plans";
 
-export type UsageItem = { kind: "newsletter" | "text" | "image"; used: number; limit_value: number | null };
+export type UsageItem = { kind: "ai" | "newsletter" | "subscribers" | "storage" | "members"; used: number; limit_value: number | null };
 
 const META = {
-  newsletter: { label: "뉴스레터 발송", unit: "건" },
-  text: { label: "AI 본문 생성", unit: "토큰" },
-  image: { label: "AI 이미지 생성", unit: "토큰" },
+  ai: { label: "AI 사용량", unit: "토큰", hint: "이미지 1장 = 4,000토큰" },
+  newsletter: { label: "뉴스레터 발송", unit: "통", hint: "" },
+  subscribers: { label: "구독자", unit: "명", hint: "" },
+  storage: { label: "미디어 용량", unit: "", hint: "" },
+  members: { label: "멤버", unit: "명", hint: "초대 포함" },
 } as const;
+
+const fmt = (u: UsageItem, n: number) => (u.kind === "storage" ? formatBytes(n) : n.toLocaleString());
 
 const pctOf = (u: UsageItem) => (u.limit_value ? Math.min(100, Math.round((u.used / u.limit_value) * 100)) : null);
 
 /** This month's usage against the site's limits, with the "이용 한도 늘리기" request. */
-export function UsagePanel({ usage, pending }: { usage: UsageItem[]; pending: boolean }) {
+export function UsagePanel({ usage, pending, planLine }: { usage: UsageItem[]; pending: boolean; planLine?: string }) {
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
   const [message, setMessage] = useState("");
@@ -32,7 +37,10 @@ export function UsagePanel({ usage, pending }: { usage: UsageItem[]; pending: bo
   return (
     <section className={`card p-5 ${hot.length ? "border-red-200" : ""}`}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-bold">이번 달 이용량</h2>
+        <div>
+          <h2 className="font-bold">이번 달 이용량</h2>
+          {planLine && <p className="text-sm text-slate-500">{planLine}</p>}
+        </div>
         {pending || result.ok ? (
           <span className="text-sm text-slate-500">한도 증설을 요청했어요. 운영팀이 확인 중이에요.</span>
         ) : (
@@ -43,10 +51,10 @@ export function UsagePanel({ usage, pending }: { usage: UsageItem[]; pending: bo
       </div>
       {hot.length > 0 && (
         <p className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-          {hot.map((u) => META[u.kind].label).join(", ")} 사용량이 이번 달 한도의 90%를 넘었어요. 한도를 다 쓰면 해당 기능을 쓸 수 없어요.
+          {hot.map((u) => META[u.kind].label).join(", ")} 사용량이 한도의 90%를 넘었어요. 한도를 다 쓰면 해당 기능을 쓸 수 없어요.{hot.some((u) => u.kind === "subscribers") ? " 리드 수집은 계속돼요." : ""}
         </p>
       )}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {usage.map((u) => {
           const pct = pctOf(u);
           const m = META[u.kind];
@@ -63,13 +71,14 @@ export function UsagePanel({ usage, pending }: { usage: UsageItem[]; pending: bo
                 />
               </div>
               <p className="mt-1 text-xs text-slate-500">
-                {u.used.toLocaleString()} {u.limit_value !== null && `/ ${u.limit_value.toLocaleString()}`} {m.unit}
+                {fmt(u, u.used)} {u.limit_value !== null && `/ ${fmt(u, u.limit_value)}`} {m.unit}
+                {m.hint && <span className="block text-slate-400">{m.hint}</span>}
               </p>
             </div>
           );
         })}
       </div>
-      <p className="mt-3 text-xs text-slate-400">매달 1일에 사용량이 초기화돼요.</p>
+      <p className="mt-3 text-xs text-slate-400">AI 사용량과 뉴스레터 발송은 매달 1일에 초기화돼요.</p>
 
       {open && (
         <Modal title="이용 한도 늘리기" onClose={() => setOpen(false)}>
@@ -91,7 +100,7 @@ export function UsagePanel({ usage, pending }: { usage: UsageItem[]; pending: bo
                     />
                     {META[u.kind].label}
                     <span className="text-xs text-slate-400">
-                      ({u.used.toLocaleString()}{u.limit_value !== null ? ` / ${u.limit_value.toLocaleString()}` : ""} {META[u.kind].unit})
+                      ({fmt(u, u.used)}{u.limit_value !== null ? ` / ${fmt(u, u.limit_value)}` : ""} {META[u.kind].unit})
                     </span>
                   </label>
                 ))}

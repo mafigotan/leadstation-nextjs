@@ -19,14 +19,31 @@ export async function markAllNotificationsRead() {
 
 /** Admin approves or declines a request to use the site. */
 export async function answerJoinRequest(requestId: string, approve: boolean) {
-  const { supabase, role } = await requireSite();
+  const { supabase, role, site } = await requireSite();
   if (role !== "admin") return;
+  if (approve) {
+    // A full site keeps the request open; the dashboard shows why the button is off.
+    const { checkLimit } = await import("@/lib/usage");
+    try {
+      await checkLimit(supabase, site.id, "members", 1);
+    } catch {
+      return;
+    }
+  }
   const { error } = await supabase.rpc("answer_join_request", { p_id: requestId, p_approve: approve });
   if (error) console.error("answer join request failed", error);
   revalidatePath("/dashboard", "layout");
 }
 
-const KIND_LABEL: Record<string, string> = { newsletter: "뉴스레터 발송 건수", text: "AI 본문 생성 토큰", image: "AI 이미지 생성 토큰" };
+const KIND_LABEL: Record<string, string> = {
+  ai: "AI 사용량",
+  newsletter: "뉴스레터 발송 건수",
+  subscribers: "구독자 수",
+  storage: "미디어 용량",
+  members: "멤버 수",
+  renewal: "이용 기간 연장",
+  plan_change: "요금제 변경",
+};
 
 /** "이용 한도 늘리기": records the request and emails the super admins. */
 export async function requestLimitIncrease(kinds: string[], message: string): Promise<{ ok?: boolean; error?: string }> {
@@ -45,19 +62,24 @@ export async function requestLimitIncrease(kinds: string[], message: string): Pr
     const { sendOne } = await import("@/lib/newsletter/mailer");
     const { siteUrl } = await import("@/lib/site");
     const usage = await loadUsage(supabase, site.id);
+    const { formatBytes, planName } = await import("@/lib/plans");
+    const fmt = (kind: string, n: number) => (kind === "storage" ? formatBytes(n) : n.toLocaleString());
     const rows = usage
-      .map((u) => `<tr><td style="padding:4px 12px 4px 0">${KIND_LABEL[u.kind]}${picked.includes(u.kind) ? " <b>(요청)</b>" : ""}</td><td>${u.used.toLocaleString()} / ${u.limit_value === null ? "무제한" : u.limit_value.toLocaleString()}</td></tr>`)
+      .map((u) => `<tr><td style="padding:4px 12px 4px 0">${KIND_LABEL[u.kind]}${picked.includes(u.kind) ? " <b>(요청)</b>" : ""}</td><td>${fmt(u.kind, u.used)} / ${u.limit_value === null ? "무제한" : fmt(u.kind, u.limit_value)}</td></tr>`)
       .join("");
+    const planAsk = picked.some((k) => k === "renewal" || k === "plan_change");
+    const what = planAsk ? "요금제 연장/변경을 문의했어요" : "이용 한도 증설을 요청했어요";
     const html = `<div style="font-family:sans-serif;font-size:14px;line-height:1.6">
-      <p><b>${esc(site.name || site.handle)}</b> (${esc(site.handle)}) 사이트에서 이용 한도 증설을 요청했어요.</p>
+      <p><b>${esc(site.name || site.handle)}</b> (${esc(site.handle)}) 사이트에서 ${what}.</p>
+      <p>현재 요금제: ${planName(site.plan)} · 이용 기간 ${site.active_from ?? "-"} ~ ${site.active_until ?? "-"}</p>
       <p>요청자: ${esc(profile.full_name)} &lt;${esc(user.email ?? "")}&gt;</p>
       <p>요청 항목: ${picked.map((k) => KIND_LABEL[k]).join(", ")}</p>
       ${message.trim() ? `<p>메시지: ${esc(message.trim())}</p>` : ""}
       <p>이번 달 사용량</p><table>${rows}</table>
-      <p><a href="${siteUrl()}/admin/sites/${site.id}">슈퍼 관리자 화면에서 한도 변경하기</a></p></div>`;
+      <p><a href="${siteUrl()}/admin/sites/${site.id}">슈퍼 관리자 화면에서 처리하기</a></p></div>`;
     const to = await superAdminEmails();
     for (const addr of to) {
-      await sendOne({ to: addr, subject: `[LEADstation] 이용 한도 증설 요청: ${site.name || site.handle}`, html, fromName: "LEADstation", replyTo: user.email ?? undefined });
+      await sendOne({ to: addr, subject: `[LEADstation] ${planAsk ? "요금제 연장/변경 문의" : "이용 한도 증설 요청"}: ${site.name || site.handle}`, html, fromName: "LEADstation", replyTo: user.email ?? undefined });
     }
     if (!to.length) console.warn("limit request: no super admin email (set SUPABASE_SERVICE_ROLE_KEY or ADMIN_NOTIFY_EMAIL)");
   } catch (e) {

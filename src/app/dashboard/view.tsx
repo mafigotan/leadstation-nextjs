@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { UsagePanel, type UsageItem } from "./usage-panel";
-import { daysLeft, endsWithinTwoMonths } from "@/lib/site";
+import { PlanBanner } from "./plan/banner";
+import { planName } from "@/lib/plans";
 import { activitySubject, activityVerb } from "@/lib/activity";
 import type { Site } from "@/lib/supabase/server";
 import type { LeadWithPage } from "@/lib/leads";
@@ -70,26 +71,13 @@ export type DashboardData = {
   usage: UsageItem[];
   limitRequested: boolean;
   visits: ReportResult;
+  membersFull?: boolean;
 };
 
-export function DashboardView({ name, site, isAdmin, notifications, open, pages, articles, newsletters, media, leads, people, usage, limitRequested, visits }: DashboardData) {
+export function DashboardView({ name, site, isAdmin, notifications, open, pages, articles, newsletters, media, leads, people, usage, limitRequested, visits, membersFull }: DashboardData) {
   return (
     <div className="space-y-6">
-      {endsWithinTwoMonths(site.active_until) && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
-          <div>
-            <p className="font-semibold">
-              서비스 이용 기간이 {site.active_until}에 끝나요
-              {(() => {
-                const d = daysLeft(site.active_until);
-                return d === null ? "" : d <= 0 ? " (오늘 종료)" : ` (${d}일 남음)`;
-              })()}
-            </p>
-            <p className="mt-0.5 text-sm">기간이 끝나면 대시보드와 공개 페이지, 블로그를 이용할 수 없어요. 계속 이용하려면 LEADstation 운영팀에 연장을 문의해주세요.</p>
-          </div>
-          <Link href="/dashboard/profile" className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-amber-100">이용 기간 보기</Link>
-        </div>
-      )}
+      <PlanBanner site={site} isAdmin={isAdmin} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">{name} 님, 안녕하세요</h1>
@@ -126,10 +114,14 @@ export function DashboardView({ name, site, isAdmin, notifications, open, pages,
                   <p className="text-xs text-slate-500">{[n.body, ago(n.created_at)].filter(Boolean).join(" · ")}</p>
                 </div>
                 {n.kind === "join_request" && n.ref_id && open.has(n.ref_id) && isAdmin ? (
-                  <div className="flex gap-2">
-                    <form action={answerJoinRequest.bind(null, n.ref_id, true)}>
-                      <button className="btn-primary px-3 py-1.5 text-sm">승인</button>
-                    </form>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {membersFull ? (
+                      <span className="text-xs text-red-600">멤버 한도가 다 찼어요. 멤버를 정리하거나 요금제를 올린 뒤 승인할 수 있어요.</span>
+                    ) : (
+                      <form action={answerJoinRequest.bind(null, n.ref_id, true)}>
+                        <button className="btn-primary px-3 py-1.5 text-sm">승인</button>
+                      </form>
+                    )}
                     <form action={answerJoinRequest.bind(null, n.ref_id, false)}>
                       <button className="btn-secondary px-3 py-1.5 text-sm">거절</button>
                     </form>
@@ -144,7 +136,7 @@ export function DashboardView({ name, site, isAdmin, notifications, open, pages,
         </section>
       )}
 
-      <UsagePanel usage={usage} pending={limitRequested} />
+      <UsagePanel usage={usage} pending={limitRequested} planLine={`${planName(site.plan ?? null)}${site.active_from || site.active_until ? ` · ${site.active_from ?? ""} ~ ${site.active_until ?? ""}` : ""}`} />
 
       <VisitsCard visits={visits} />
 

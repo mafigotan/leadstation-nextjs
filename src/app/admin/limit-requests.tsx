@@ -2,7 +2,10 @@ import Link from "next/link";
 import { closeLimitRequest } from "./actions";
 import { Table, Th, fmtDateTime } from "./ui";
 
-const KIND: Record<string, string> = { newsletter: "뉴스레터 발송", text: "AI 본문 토큰", image: "AI 이미지 토큰" };
+const KIND: Record<string, string> = {
+  ai: "AI 사용량", newsletter: "뉴스레터 발송", subscribers: "구독자 수", storage: "미디어 용량", members: "멤버 수",
+  renewal: "기간 연장 문의", plan_change: "요금제 변경 문의", text: "AI 본문 토큰", image: "AI 이미지 토큰",
+};
 
 export type LimitRequest = {
   id: string; kinds: string[]; message: string; status: string; created_at: string;

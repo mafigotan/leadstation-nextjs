@@ -3,9 +3,10 @@ import { requireSuperAdmin } from "@/lib/supabase/server";
 import { todayKst } from "@/lib/site";
 import { METHOD_LABEL, Table, Th, fmtDate, won } from "../ui";
 import { PaymentModalButton } from "../sites/[id]/forms";
+import { loadPlans, planName } from "@/lib/plans";
 
 type Row = {
-  id: string; site_id: string; paid_on: string; amount: number; method: string; period_from: string | null; period_to: string | null;
+  id: string; site_id: string; plan: string | null; paid_on: string; amount: number; method: string; period_from: string | null; period_to: string | null;
   payer: string; memo: string; sites: { handle: string; name: string } | null;
 };
 
@@ -22,7 +23,7 @@ export default async function AdminPayments({ searchParams }: { searchParams: Pr
 
   let query = supabase
     .from("site_payments")
-    .select("id, site_id, paid_on, amount, method, period_from, period_to, payer, memo, sites(handle, name)")
+    .select("id, site_id, plan, paid_on, amount, method, period_from, period_to, payer, memo, sites(handle, name)")
     .gte("paid_on", from)
     .lte("paid_on", to)
     .order("paid_on", { ascending: false })
@@ -32,10 +33,15 @@ export default async function AdminPayments({ searchParams }: { searchParams: Pr
   const rows = ((data ?? []) as unknown as Row[]).filter(
     (r) => !q || [r.sites?.handle, r.sites?.name, r.payer, r.memo].some((v) => v?.toLowerCase().includes(q)),
   );
-  const { data: allSites } = await supabase.from("sites").select("id, handle, name, active_until").order("handle");
+  const [{ data: allSites }, plans] = await Promise.all([
+    supabase.from("sites").select("id, handle, name, plan, active_until").order("handle"),
+    loadPlans(supabase),
+  ]);
   const siteOptions = (allSites ?? []).map((s) => ({
     id: s.id,
-    label: `${s.name ? `${s.name} (${s.handle})` : s.handle}${s.active_until ? ` · ~${s.active_until}` : ""}`,
+    plan: s.plan,
+    active_until: s.active_until,
+    label: `${s.name ? `${s.name} (${s.handle})` : s.handle} · ${planName(s.plan)}${s.active_until ? ` · ~${s.active_until}` : ""}`,
   }));
   const total = rows.reduce((s, r) => s + Number(r.amount), 0);
 
@@ -49,7 +55,7 @@ export default async function AdminPayments({ searchParams }: { searchParams: Pr
         <div>
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-bold">결제 내역</h1>
-            <PaymentModalButton sites={siteOptions} today={today} />
+            <PaymentModalButton sites={siteOptions} plans={plans} today={today} />
           </div>
           <p className="mt-1 text-sm text-slate-500">{fmtDate(from)} ~ {fmtDate(to)} · {rows.length}건 · 합계 <span className="font-semibold text-slate-800">{won(total)}</span></p>
         </div>
@@ -73,11 +79,12 @@ export default async function AdminPayments({ searchParams }: { searchParams: Pr
           ))}
         </div>
       )}
-      <Table head={<><Th>결제일</Th><Th>사이트</Th><Th right>금액</Th><Th>방법</Th><Th>이용 기간</Th><Th>입금자</Th><Th>메모</Th></>}>
+      <Table head={<><Th>결제일</Th><Th>사이트</Th><Th>요금제</Th><Th right>금액</Th><Th>방법</Th><Th>이용 기간</Th><Th>입금자</Th><Th>메모</Th></>}>
         {rows.map((r) => (
           <tr key={r.id}>
             <td className="whitespace-nowrap px-3 py-2">{r.paid_on}</td>
             <td className="px-3 py-2"><Link href={`/admin/sites/${r.site_id}`} className="text-indigo-600 hover:underline">{r.sites?.name || r.sites?.handle}</Link></td>
+            <td className="px-3 py-2">{r.plan ? planName(r.plan) : "-"}</td>
             <td className="whitespace-nowrap px-3 py-2 text-right font-medium">{won(Number(r.amount))}</td>
             <td className="px-3 py-2">{METHOD_LABEL[r.method] ?? r.method}</td>
             <td className="whitespace-nowrap px-3 py-2">{r.period_from || r.period_to ? `${fmtDate(r.period_from)} ~ ${fmtDate(r.period_to)}` : "-"}</td>
@@ -85,7 +92,7 @@ export default async function AdminPayments({ searchParams }: { searchParams: Pr
             <td className="px-3 py-2 text-slate-600">{r.memo || "-"}</td>
           </tr>
         ))}
-        {!rows.length && <tr><td colSpan={7} className="px-3 py-8 text-center text-slate-400">이 기간에 결제 내역이 없어요.</td></tr>}
+        {!rows.length && <tr><td colSpan={8} className="px-3 py-8 text-center text-slate-400">이 기간에 결제 내역이 없어요.</td></tr>}
       </Table>
     </div>
   );

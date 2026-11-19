@@ -57,6 +57,7 @@ export type Site = {
   active_from?: string | null;
   active_until?: string | null;
   service_started_on?: string | null;
+  plan?: string | null;
 };
 export type SiteRole = "admin" | "member";
 export type Membership = { role: SiteRole; site: Site };
@@ -64,10 +65,14 @@ export type Membership = { role: SiteRole; site: Site };
 /** The signed-in user's profile and the sites they belong to. */
 export async function loadAccount() {
   const { supabase, user } = await requireUser();
-  const [{ data: profile }, { data: rows }] = await Promise.all([
+  const siteCols = "id, handle, name, status, active_from, active_until, service_started_on";
+  const membersOf = (cols: string) => supabase.from("site_members").select(`role, sites(${cols})`).eq("user_id", user.id).order("created_at");
+  const [{ data: profile }, first] = await Promise.all([
     supabase.from("profiles").select("user_id, full_name, phone, company, active_site_id, suspended_at, suspended_reason").eq("user_id", user.id).maybeSingle<Profile>(),
-    supabase.from("site_members").select("role, sites(id, handle, name, status, active_from, active_until, service_started_on)").eq("user_id", user.id).order("created_at"),
+    membersOf(`${siteCols}, plan`),
   ]);
+  // Before 0019_plans.sql has run there is no plan column.
+  const { data: rows } = first.error ? await membersOf(siteCols) : first;
   const memberships = ((rows ?? []) as unknown as { role: SiteRole; sites: Site | null }[])
     .filter((r) => r.sites)
     .map((r) => ({ role: r.role, site: r.sites! }));

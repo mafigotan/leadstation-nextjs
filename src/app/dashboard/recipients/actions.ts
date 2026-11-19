@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSite } from "@/lib/supabase/server";
+import { checkLimit, limitMessage } from "@/lib/usage";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const s = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
@@ -37,6 +38,22 @@ export async function importRecipients(rows: RecipientInput[], groupId: string |
   const list = [...byEmail.values()];
   const invalid = rows.length - clean.length;
   if (!list.length) return { error: "올바른 이메일 주소가 없어요.", added: 0, updated: 0, invalid };
+
+  // Subscriber limit: only addresses that are not on the list yet count.
+  let existing = 0;
+  for (let i = 0; i < list.length; i += 500) {
+    const { count } = await supabase
+      .from("recipients")
+      .select("id", { count: "exact", head: true })
+      .eq("site_id", site.id)
+      .in("email", list.slice(i, i + 500).map((r) => r.email));
+    existing += count ?? 0;
+  }
+  try {
+    if (list.length > existing) await checkLimit(supabase, site.id, "subscribers", list.length - existing);
+  } catch (e) {
+    return { error: limitMessage(e) ?? "구독자 한도를 확인하지 못했어요.", added: 0, updated: 0, invalid };
+  }
 
   const { count: before } = await supabase.from("recipients").select("id", { count: "exact", head: true });
   for (let i = 0; i < list.length; i += 500) {
@@ -136,9 +153,17 @@ export async function addRecipient(_: unknown, formData: FormData) {
 }
 
 export async function bulkAction(ids: string[], action: "delete" | "unsubscribe" | "resubscribe" | "add-group" | "remove-group", groupId?: string) {
-  const { supabase } = await requireSite();
+  const { supabase, site } = await requireSite();
   const list = ids.slice(0, 5000);
   if (!list.length) return { error: "선택한 수신자가 없어요." };
+  if (action === "resubscribe") {
+    const { count } = await supabase.from("recipients").select("id", { count: "exact", head: true }).in("id", list).eq("status", "unsubscribed");
+    try {
+      if (count) await checkLimit(supabase, site.id, "subscribers", count);
+    } catch (e) {
+      return { error: limitMessage(e) ?? "구독자 한도를 확인하지 못했어요." };
+    }
+  }
   if (action === "delete") await supabase.from("recipients").delete().in("id", list);
   if (action === "unsubscribe") await supabase.from("recipients").update({ status: "unsubscribed", unsubscribed_at: new Date().toISOString() }).in("id", list);
   if (action === "resubscribe") await supabase.from("recipients").update({ status: "subscribed", unsubscribed_at: null }).in("id", list);
