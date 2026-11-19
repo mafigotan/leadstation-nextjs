@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { AiBadge, CtaBand, MarketingShell, MockScreen, Prompt, SectionTitle } from "@/components/marketing/chrome";
-import { DashboardInfographic, LeadsInfographic, PromoInfographic, WriterInfographic } from "@/components/marketing/infographics";
+import { AiBadge, CtaBand, MarketingShell, Prompt, SectionTitle } from "@/components/marketing/chrome";
+import { BlogPostInfographic, DashboardInfographic, EventPageInfographic, ImageInfographic, LeadsInfographic, NewsletterInfographic, PromoInfographic, PromoPageInfographic, SiteHomeInfographic, WriterInfographic } from "@/components/marketing/infographics";
 import { PlanSummary } from "@/components/marketing/plans";
 
 // Plan prices are read from the database on each request (no incremental cache on Cloudflare yet).
@@ -33,6 +33,8 @@ const INFO: Record<string, React.ReactNode> = {
   "새 프로모션": <PromoInfographic />,
   "리드 목록": <LeadsInfographic />,
   "새 글": <WriterInfographic />,
+  "새 뉴스레터": <NewsletterInfographic />,
+  "미디어 라이브러리": <ImageInfographic />,
   "대시보드": <DashboardInfographic />,
 };
 
@@ -84,7 +86,7 @@ export default function Home() {
                 </div>
               ))}
             </div>
-            <MockScreen title="회사명.leadstation.kr/event/spring" rows={2} />
+            <PromoPageInfographic />
           </div>
         </div>
       </section>
@@ -119,7 +121,7 @@ export default function Home() {
         <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {AI_FEATURES.map((f) => (
             <article key={f.title} className="card flex flex-col gap-3 p-6">
-              {INFO[f.mock] ?? <MockScreen title={f.mock} rows={2} />}
+              {INFO[f.mock]}
               <div className="mt-2"><AiBadge>{f.badge}</AiBadge></div>
               <h3 className="text-lg font-bold leading-snug text-slate-900">{f.title}</h3>
               <p className="text-sm leading-relaxed text-slate-600">{f.desc}</p>
@@ -182,10 +184,10 @@ export default function Home() {
           </div>
         </div>
         <div className="grid min-w-0 flex-1 basis-96 gap-3">
-          <MockScreen title="회사명.leadstation.kr" rows={3} />
+          <SiteHomeInfographic />
           <div className="grid grid-cols-2 gap-3">
-            <MockScreen title="/event/spring" rows={2} />
-            <MockScreen title="/blog/new-product" rows={2} />
+            <EventPageInfographic />
+            <BlogPostInfographic />
           </div>
         </div>
       </section>

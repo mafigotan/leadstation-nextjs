@@ -1,9 +1,9 @@
 // Small illustrated diagrams for the marketing cards: each one draws what its paragraph says.
 // Pure markup (no images) so they stay sharp at any size.
 
-function Frame({ children }: { children: React.ReactNode }) {
+function Frame({ children, aspect = "aspect-[4/3]" }: { children: React.ReactNode; aspect?: string }) {
   return (
-    <div aria-hidden="true" className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-gradient-to-br from-indigo-50 via-white to-violet-50 ring-1 ring-indigo-100">
+    <div aria-hidden="true" className={`relative ${aspect} w-full overflow-hidden rounded-xl bg-gradient-to-br from-indigo-50 via-white to-violet-50 ring-1 ring-indigo-100`}>
       {children}
     </div>
   );
@@ -211,6 +211,209 @@ export function DashboardInfographic() {
             <div className="h-1.5 w-[42%] rounded-full bg-indigo-600" />
           </div>
         </div>
+      </div>
+    </Frame>
+  );
+}
+
+function Browser({ url, children, className = "" }: { url: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-slate-200 ${className}`}>
+      <div className="flex items-center gap-1 border-b border-slate-100 bg-slate-50 px-2 py-1">
+        <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+        <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+        <span className="ml-1 truncate text-[9px] text-slate-500">{url}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Wheel({ className = "h-12 w-12" }: { className?: string }) {
+  return (
+    <div className={`relative ${className}`}>
+      <div
+        className="h-full w-full rounded-full ring-2 ring-white shadow"
+        style={{ background: "conic-gradient(#6366f1 0 16.6%, #f59e0b 0 33.3%, #ec4899 0 50%, #10b981 0 66.6%, #8b5cf6 0 83.3%, #f97316 0)" }}
+      />
+      <div className="absolute left-1/2 top-1/2 h-1/4 w-1/4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow" />
+      <div className="absolute -top-1 left-1/2 h-0 w-0 -translate-x-1/2 border-x-[4px] border-t-[7px] border-x-transparent border-t-slate-800" />
+    </div>
+  );
+}
+
+function FormMock() {
+  return (
+    <div className="space-y-1">
+      {["이름", "연락처", "이메일"].map((f) => (
+        <div key={f} className="rounded border border-slate-200 px-1 py-0.5 text-[8px] text-slate-400">{f}</div>
+      ))}
+      <div className="flex items-center gap-1 text-[8px] text-slate-500"><span className="h-1.5 w-1.5 rounded-sm bg-indigo-500" /> 개인정보 수집 동의</div>
+      <div className="rounded bg-indigo-600 py-0.5 text-center text-[9px] font-bold text-white">신청하기</div>
+    </div>
+  );
+}
+
+/** Hero: the promotion page AI made, live on the user's own address. */
+export function PromoPageInfographic() {
+  return (
+    <Frame aspect="aspect-[16/8]">
+      <div className="flex h-full items-center justify-center p-3">
+        <Browser url="회사명.leadstation.kr/event/spring" className="relative w-full">
+          <div className="bg-gradient-to-r from-indigo-600 to-violet-500 px-3 py-2 text-white">
+            <div className="text-[9px] font-semibold opacity-80">봄 시즌 이벤트</div>
+            <div className="text-[13px] font-bold leading-tight">신제품 사전 신청하고 경품 받아가세요</div>
+          </div>
+          <div className="grid grid-cols-[1fr_1fr] gap-3 p-3">
+            <div className="flex flex-col items-center justify-center gap-1 rounded-lg bg-amber-50 py-2">
+              <Wheel />
+              <div className="text-[9px] font-semibold text-amber-700">룰렛 돌리기</div>
+            </div>
+            <FormMock />
+          </div>
+          <div className="absolute right-2 top-7 flex items-center gap-0.5 rounded-full bg-white px-1.5 py-0.5 text-[9px] font-bold text-indigo-700 shadow">
+            <Spark className="h-2.5 w-2.5" /> AI가 만든 페이지
+          </div>
+        </Browser>
+      </div>
+    </Frame>
+  );
+}
+
+/** 프롬프트 → AI 이미지 → 라이브러리에 모아 프로모션·글·뉴스레터에 사용 */
+export function ImageInfographic() {
+  const tiles = ["from-amber-200 to-rose-300", "from-sky-200 to-indigo-300", "from-emerald-200 to-teal-300", "from-violet-200 to-fuchsia-300"];
+  return (
+    <Frame>
+      <div className="flex h-full flex-col items-center justify-between p-3">
+        <div className="rounded-2xl rounded-bl-sm bg-white px-3 py-1.5 text-[11px] text-slate-700 shadow-sm ring-1 ring-slate-200">
+          &ldquo;창가에 놓인 신제품 사진&rdquo;
+        </div>
+        <Arrow className="-my-1" />
+        <AiNode label="AI 이미지" />
+        <Arrow className="-my-1" />
+        <div className="w-full rounded-lg bg-white p-2 shadow-sm ring-1 ring-slate-200">
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-800">미디어 라이브러리</span>
+            <span className="text-[9px] text-slate-500">프로모션 · 글 · 뉴스레터</span>
+          </div>
+          <div className="grid grid-cols-4 gap-1.5">
+            {tiles.map((t) => (
+              <div key={t} className={`aspect-square rounded bg-gradient-to-br ${t}`} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
+/** 리드 그룹 → AI가 쓴 뉴스레터 → 발송 */
+export function NewsletterInfographic() {
+  return (
+    <Frame>
+      <div className="flex h-full items-center gap-2 p-3">
+        <div className="flex w-16 shrink-0 flex-col items-center gap-2">
+          <div className="w-full rounded-lg bg-white px-1.5 py-1.5 text-center shadow-sm ring-1 ring-slate-200">
+            <div className="text-[9px] text-slate-500">받는 그룹</div>
+            <div className="text-[11px] font-bold text-slate-800">리드</div>
+            <div className="text-[10px] font-semibold text-indigo-600">128명</div>
+          </div>
+          <AiNode label="AI 작성" />
+        </div>
+        <Arrow className="-rotate-90 shrink-0" />
+        <div className="min-w-0 flex-1 rounded-lg bg-white p-2 shadow-sm ring-1 ring-slate-200">
+          <div className="border-b border-slate-100 pb-1 text-[9px] text-slate-500">
+            제목 <span className="font-semibold text-slate-800">이번 달 새 소식을 전해드려요</span>
+          </div>
+          <div className="mt-1.5 h-7 rounded bg-gradient-to-br from-sky-200 to-indigo-300" />
+          <div className="mt-1.5 grid grid-cols-3 gap-1">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="space-y-0.5 rounded bg-slate-50 p-1">
+                <div className="h-3 rounded bg-indigo-100" />
+                <div className="h-0.5 rounded bg-slate-300" />
+              </div>
+            ))}
+          </div>
+          <div className="mx-auto mt-1.5 w-2/3 rounded bg-indigo-600 py-0.5 text-center text-[9px] font-bold text-white">자세히 보기</div>
+          <div className="mt-1.5 flex items-center justify-center gap-1 text-[10px] font-bold text-emerald-700">
+            <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor"><path d="M1 7.5 15 1l-4 14-3-5.5L1 7.5Zm7 2 1.6 3 2.4-8.6L8 9.5Z" /></svg>
+            128명에게 발송 완료
+          </div>
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
+/** 내 사이트 홈: 프로모션과 블로그 글이 한 주소에 모임 */
+export function SiteHomeInfographic() {
+  return (
+    <Frame aspect="aspect-[16/8]">
+      <div className="flex h-full items-center p-3">
+        <Browser url="회사명.leadstation.kr" className="w-full">
+          <div className="flex items-center justify-between border-b border-slate-100 px-3 py-1.5">
+            <span className="text-[11px] font-bold text-slate-800">회사명</span>
+            <span className="flex gap-2 text-[9px] font-semibold text-slate-500"><span className="text-indigo-600">프로모션</span><span>블로그</span></span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 p-3">
+            <div>
+              <div className="mb-1 text-[9px] font-bold text-slate-600">진행 중인 프로모션</div>
+              {["봄 시즌 사전 신청", "신규 고객 할인"].map((t, i) => (
+                <div key={t} className="mb-1 flex items-center gap-1.5 rounded bg-slate-50 p-1">
+                  <div className={`h-5 w-7 shrink-0 rounded bg-gradient-to-br ${i ? "from-emerald-200 to-teal-300" : "from-indigo-200 to-violet-300"}`} />
+                  <span className="truncate text-[9px] text-slate-700">{t}</span>
+                  <span className="ml-auto rounded bg-emerald-100 px-1 text-[8px] font-bold text-emerald-700">진행 중</span>
+                </div>
+              ))}
+            </div>
+            <div>
+              <div className="mb-1 text-[9px] font-bold text-slate-600">블로그</div>
+              {["신제품 활용법 5가지", "업계 소식 정리"].map((t, i) => (
+                <div key={t} className="mb-1 flex items-center gap-1.5 rounded bg-slate-50 p-1">
+                  <div className={`h-5 w-7 shrink-0 rounded bg-gradient-to-br ${i ? "from-sky-200 to-indigo-300" : "from-amber-200 to-rose-300"}`} />
+                  <span className="truncate text-[9px] text-slate-700">{t}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Browser>
+      </div>
+    </Frame>
+  );
+}
+
+/** 이벤트 페이지 한 장 */
+export function EventPageInfographic() {
+  return (
+    <Frame>
+      <div className="flex h-full items-center p-2">
+        <Browser url="/event/spring" className="w-full">
+          <div className="bg-gradient-to-r from-indigo-600 to-violet-500 px-2 py-1 text-[10px] font-bold text-white">봄 시즌 이벤트</div>
+          <div className="flex items-center gap-2 p-2">
+            <Wheel className="h-10 w-10 shrink-0" />
+            <div className="min-w-0 flex-1"><FormMock /></div>
+          </div>
+        </Browser>
+      </div>
+    </Frame>
+  );
+}
+
+/** 블로그 글 한 장 */
+export function BlogPostInfographic() {
+  return (
+    <Frame>
+      <div className="flex h-full items-center p-2">
+        <Browser url="/blog/new-product" className="w-full">
+          <div className="space-y-1 p-2">
+            <div className="h-2 w-4/5 rounded bg-slate-800" />
+            <div className="h-9 rounded bg-gradient-to-br from-amber-200 via-rose-200 to-indigo-200" />
+            <div className="h-1 rounded bg-slate-200" />
+            <div className="h-1 w-11/12 rounded bg-slate-200" />
+            <div className="h-1 w-2/3 rounded bg-slate-200" />
+          </div>
+        </Browser>
       </div>
     </Frame>
   );
