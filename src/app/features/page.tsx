@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { AiBadge, CtaBand, MarketingShell, MockScreen, Prompt, SectionTitle } from "@/components/marketing/chrome";
+import { FeatureLeadsInfographic, FeatureNewsletterInfographic, FeaturePromoInfographic, FeatureWriterInfographic, GameIcon } from "@/components/marketing/infographics";
+import { AiBadge, CtaBand, MarketingShell, Prompt, SectionTitle } from "@/components/marketing/chrome";
 
 export const metadata: Metadata = {
   title: "핵심 기능 | LEADstation 리드스테이션",
@@ -20,6 +21,13 @@ const PROMO_STEPS = [
   ["신청폼 구성", "목적에 맞는 신청 항목과 개인정보 수집 동의 약관을 AI가 구성합니다."],
   ["페이지 내용", "제목, 소개 문구, 이미지를 AI가 채운 페이지가 내 사이트에 바로 게시됩니다."],
 ];
+
+const INFO: Record<string, React.ReactNode> = {
+  "새 프로모션 · AI 기획안": <FeaturePromoInfographic />,
+  "리드 목록": <FeatureLeadsInfographic />,
+  "새 뉴스레터": <FeatureNewsletterInfographic />,
+  "새 글": <FeatureWriterInfographic />,
+};
 
 const GAMES = ["룰렛", "캡슐 뽑기", "슬롯머신", "카드 짝 맞추기"];
 
@@ -67,7 +75,7 @@ function Split({
             <p className="mt-4 text-lg leading-relaxed text-slate-600">{desc}</p>
             {prompt && <div className="mt-6"><Prompt>&ldquo;{prompt}&rdquo;</Prompt></div>}
           </div>
-          <MockScreen title={mock} rows={6} className="min-w-0 flex-1 basis-96" />
+          <div className="min-w-0 flex-1 basis-96">{INFO[mock]}</div>
         </div>
         {children}
       </div>
@@ -114,7 +122,7 @@ export default function FeaturesPage() {
           <h3 className="font-bold text-slate-900">AI가 만드는 이벤트 게임</h3>
           <ul className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
             {GAMES.map((g) => (
-              <li key={g} className="flex h-24 items-center justify-center rounded-xl bg-indigo-50 font-semibold text-indigo-800">{g}</li>
+              <li key={g} className="flex h-28 flex-col items-center justify-center gap-2 rounded-xl bg-indigo-50 font-semibold text-indigo-800"><GameIcon name={g} />{g}</li>
             ))}
           </ul>
         </div>
