@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { AiBadge, CtaBand, MarketingShell, MockScreen, Prompt, SectionTitle } from "@/components/marketing/chrome";
+import { DashboardInfographic, LeadsInfographic, PromoInfographic, WriterInfographic } from "@/components/marketing/infographics";
 import { PlanSummary } from "@/components/marketing/plans";
 
 // Plan prices are read from the database on each request (no incremental cache on Cloudflare yet).
@@ -27,6 +28,13 @@ const AI_FEATURES = [
   { badge: "AI 이미지", title: "필요한 이미지도 AI가 그립니다", desc: "프로모션, 글, 뉴스레터에 들어갈 이미지를 만들어 미디어 라이브러리에 모아 둡니다.", mock: "미디어 라이브러리" },
   { badge: "한눈에 관리", title: "모든 결과를 한 화면에서 확인합니다", desc: "방문, 신청, 발송 현황과 이번 달 AI 사용량을 대시보드에서 바로 봅니다.", mock: "대시보드" },
 ];
+
+const INFO: Record<string, React.ReactNode> = {
+  "새 프로모션": <PromoInfographic />,
+  "리드 목록": <LeadsInfographic />,
+  "새 글": <WriterInfographic />,
+  "대시보드": <DashboardInfographic />,
+};
 
 const CYCLE = [
   { badge: "AI", title: "프로모션 생성", desc: "기획, 게임, 신청폼, 페이지" },
@@ -111,7 +119,7 @@ export default function Home() {
         <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {AI_FEATURES.map((f) => (
             <article key={f.title} className="card flex flex-col gap-3 p-6">
-              <MockScreen title={f.mock} rows={2} />
+              {INFO[f.mock] ?? <MockScreen title={f.mock} rows={2} />}
               <div className="mt-2"><AiBadge>{f.badge}</AiBadge></div>
               <h3 className="text-lg font-bold leading-snug text-slate-900">{f.title}</h3>
               <p className="text-sm leading-relaxed text-slate-600">{f.desc}</p>
