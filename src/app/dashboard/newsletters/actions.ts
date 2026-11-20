@@ -200,7 +200,7 @@ export async function previewAudience(req: SendRequest) {
       .from("recipients")
       .select("email")
       .eq("site_id", site.id)
-      .eq("status", "unsubscribed")
+      .neq("status", "subscribed")
       .in("email", spec.emails.slice(0, 1000));
     const b = new Set((blocked ?? []).map((r) => r.email));
     const list = spec.emails.filter((e) => !b.has(e));

@@ -10,6 +10,7 @@ type Row = {
   phone: string;
   company: string;
   status: string;
+  status_reason: string;
   source: string;
   last_sent_at: string | null;
   created_at: string;
@@ -89,7 +90,9 @@ export function RecipientsTable({ recipients, groups, total }: { recipients: Row
                     {r.status === "subscribed" ? (
                       <span className="text-emerald-700">구독</span>
                     ) : (
-                      <span className="text-red-600">수신거부</span>
+                      <span className="text-red-600" title={r.status_reason || undefined}>
+                        {r.status === "bounced" ? "반송" : r.status === "complained" ? "스팸신고" : "수신거부"}
+                      </span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-slate-500">

@@ -15,6 +15,8 @@ export type OutgoingEmail = {
   fromName: string;
   replyTo?: string;
   unsubscribeUrl?: string;
+  /** SendGrid custom_args (string values). They come back on Event Webhook events. */
+  customArgs?: Record<string, string>;
 };
 
 type Provider = "sendgrid" | "smtp" | "resend";
@@ -69,7 +71,7 @@ async function sendgridOne(m: OutgoingEmail) {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.SENDGRID_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      personalizations: [{ to: [{ email: m.to }] }],
+      personalizations: [{ to: [{ email: m.to }], ...(m.customArgs ? { custom_args: m.customArgs } : {}) }],
       from: { email: fromAddress(), name: safeName(m.fromName) },
       ...(m.replyTo ? { reply_to: { email: m.replyTo } } : {}),
       subject: m.subject,

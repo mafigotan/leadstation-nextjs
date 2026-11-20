@@ -56,3 +56,20 @@ staging 은 Vercel 브랜치 고정 주소를 쓴다 (staging 브랜치의 최�
 배포마다 바뀌는 `leadstation-nextjs-xxxxxxxx-...vercel.app` 주소는 쓰지 않는다.
 나중에 staging.leadstation.kr 을 쓰려면 Vercel Domains 에서 추가해 Git Branch `staging` 에 연결하고,
 Preview 의 NEXT_PUBLIC_SITE_URL 과 staging Supabase 의 URL 설정을 그 주소로 바꾼다.
+
+## SendGrid 이벤트 웹훅 (반송·스팸신고·수신거부 반영)
+
+뉴스레터 발송 뒤 SendGrid 가 알려주는 결과를 수신자 상태에 반영한다.
+반송(hard bounce)은 `반송`, 스팸 신고는 `스팸신고`, SendGrid 수신거부는 `수신거부` 로 바뀌고 이후 발송 대상에서 빠진다.
+수신 서버 차단(blocked)·발송 제외(dropped)는 해당 발송 기록을 `실패` 로 바꿔 "실패한 수신자에게 재발송" 에 잡힌다.
+
+1. DB: `supabase/migrations/0020_email_events.sql` 실행 (staging 먼저).
+2. SendGrid → Settings → Mail Settings → **Event Webhooks** → Create new webhook
+   - Post URL: `<사이트 주소>/api/webhooks/sendgrid`
+     (staging: `https://leadstation-nextjs-git-staging-neomc-017a2f24.vercel.app/api/webhooks/sendgrid`, 운영: `https://leadstation.kr/api/webhooks/sendgrid`)
+   - Actions: Delivered, Bounced, Dropped, Spam Reports, Unsubscribes, Group Unsubscribes 체크
+   - **Signed Event Webhook** 켜기 → 저장 후 보이는 Verification Key 복사
+3. 환경 변수 `SENDGRID_WEBHOOK_PUBLIC_KEY` 에 그 Verification Key 를 넣는다 (Secret). 없으면 웹훅이 503 으로 거절된다.
+4. "Test Integration" 으로 보내면 200 이 와야 한다 (테스트 이벤트는 LEADstation 발송 표시가 없어 아무것도 바꾸지 않는다).
+
+staging 과 운영이 같은 SendGrid 계정을 쓰면 웹훅을 두 개 만들어 각 주소로 보내면 된다. 각 환경은 자기 DB 의 발송 기록만 찾으므로 서로 영향이 없다.

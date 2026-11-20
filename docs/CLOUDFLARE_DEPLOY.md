@@ -124,6 +124,7 @@ Cloudflare **Workers Builds** (GitHub 연결)를 쓰면 지금처럼 push 만으
 | SUPABASE_SERVICE_ROLE_KEY | Runtime Secret | |
 | ANTHROPIC_API_KEY, OPENAI_API_KEY, OPENAI_IMAGE_MODEL | Runtime (키는 Secret) | |
 | SENDGRID_API_KEY / RESEND_API_KEY / SMTP_* , MAIL_PROVIDER, MAIL_FROM_ADDRESS, ADMIN_NOTIFY_EMAIL | Runtime (키는 Secret) | SMTP 는 비권장 |
+| SENDGRID_WEBHOOK_PUBLIC_KEY | Runtime Secret | SendGrid Event Webhook 서명 검증 키 (DEPLOY.md 의 SendGrid 이벤트 웹훅 참고) |
 | CRON_SECRET | Runtime Secret | Supabase pg_cron 의 값과 동일해야 함 |
 | GA_PROPERTY_ID, GA_MEASUREMENT_ID, GOOGLE_SERVICE_ACCOUNT_JSON | Runtime (JSON 은 Secret) | JSON 은 base64 로 넣어도 됨(코드가 지원) |
 | APP_ENV (새로 추가) | Runtime | 기존 `VERCEL_ENV` 대체 |

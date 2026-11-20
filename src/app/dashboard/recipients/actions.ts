@@ -157,7 +157,7 @@ export async function bulkAction(ids: string[], action: "delete" | "unsubscribe"
   const list = ids.slice(0, 5000);
   if (!list.length) return { error: "선택한 수신자가 없어요." };
   if (action === "resubscribe") {
-    const { count } = await supabase.from("recipients").select("id", { count: "exact", head: true }).in("id", list).eq("status", "unsubscribed");
+    const { count } = await supabase.from("recipients").select("id", { count: "exact", head: true }).in("id", list).neq("status", "subscribed");
     try {
       if (count) await checkLimit(supabase, site.id, "subscribers", count);
     } catch (e) {
@@ -165,8 +165,8 @@ export async function bulkAction(ids: string[], action: "delete" | "unsubscribe"
     }
   }
   if (action === "delete") await supabase.from("recipients").delete().in("id", list);
-  if (action === "unsubscribe") await supabase.from("recipients").update({ status: "unsubscribed", unsubscribed_at: new Date().toISOString() }).in("id", list);
-  if (action === "resubscribe") await supabase.from("recipients").update({ status: "subscribed", unsubscribed_at: null }).in("id", list);
+  if (action === "unsubscribe") await supabase.from("recipients").update({ status: "unsubscribed", unsubscribed_at: new Date().toISOString() }).in("id", list).eq("status", "subscribed");
+  if (action === "resubscribe") await supabase.from("recipients").update({ status: "subscribed", status_reason: "", unsubscribed_at: null }).in("id", list);
   if (action === "add-group" && groupId) {
     await supabase.from("recipient_group_members").upsert(list.map((id) => ({ group_id: groupId, recipient_id: id })), { ignoreDuplicates: true });
   }

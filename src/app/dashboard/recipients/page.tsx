@@ -25,21 +25,24 @@ export default async function RecipientsPage({
     .from("recipients")
     .select(
       group
-        ? "id, email, name, phone, company, status, source, last_sent_at, created_at, gm:recipient_group_members!inner(group_id), groups:recipient_group_members(recipient_groups(name))"
-        : "id, email, name, phone, company, status, source, last_sent_at, created_at, groups:recipient_group_members(recipient_groups(name))",
+        ? "id, email, name, phone, company, status, status_reason, source, last_sent_at, created_at, gm:recipient_group_members!inner(group_id), groups:recipient_group_members(recipient_groups(name))"
+        : "id, email, name, phone, company, status, status_reason, source, last_sent_at, created_at, groups:recipient_group_members(recipient_groups(name))",
       { count: "exact" },
     )
     .order("created_at", { ascending: false })
     .range((pageNo - 1) * PAGE_SIZE, pageNo * PAGE_SIZE - 1);
   if (group) query = query.eq("gm.group_id", group);
-  if (status === "subscribed" || status === "unsubscribed") query = query.eq("status", status);
+  if (status && ["subscribed", "unsubscribed", "bounced", "complained"].includes(status)) query = query.eq("status", status);
   const term = q?.trim().replace(/[%,()*]/g, " ");
   if (term) query = query.or(`email.ilike.%${term}%,name.ilike.%${term}%,company.ilike.%${term}%,phone.ilike.%${term}%`);
   const { data: rows, count } = await query;
 
-  const [{ count: subscribed }, { count: unsubscribed }] = await Promise.all([
-    supabase.from("recipients").select("id", { count: "exact", head: true }).eq("status", "subscribed"),
-    supabase.from("recipients").select("id", { count: "exact", head: true }).eq("status", "unsubscribed"),
+  const countOf = (s: string) => supabase.from("recipients").select("id", { count: "exact", head: true }).eq("status", s);
+  const [{ count: subscribed }, { count: unsubscribed }, { count: bounced }, { count: complained }] = await Promise.all([
+    countOf("subscribed"),
+    countOf("unsubscribed"),
+    countOf("bounced"),
+    countOf("complained"),
   ]);
 
   const groupList = (groups ?? []).map((g) => ({
@@ -49,7 +52,7 @@ export default async function RecipientsPage({
   }));
   const recipients = (rows ?? []).map((r) => {
     const row = r as unknown as {
-      id: string; email: string; name: string; phone: string; company: string; status: string; source: string;
+      id: string; email: string; name: string; phone: string; company: string; status: string; status_reason: string; source: string;
       last_sent_at: string | null; created_at: string; groups: { recipient_groups: { name: string } | null }[];
     };
     return { ...row, groups: row.groups.map((g) => g.recipient_groups?.name).filter(Boolean) as string[] };
@@ -68,7 +71,10 @@ export default async function RecipientsPage({
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold">수신자</h1>
-        <p className="mt-1 text-sm text-slate-500">구독 {subscribed ?? 0}명 · 수신거부 {unsubscribed ?? 0}명</p>
+        <p className="mt-1 text-sm text-slate-500">구독 {subscribed ?? 0}명 · 수신거부 {unsubscribed ?? 0}명
+          {bounced ? ` · 반송 ${bounced}명` : ""}
+          {complained ? ` · 스팸신고 ${complained}명` : ""}
+        </p>
       </div>
 
       <div className="mb-6 grid gap-4 lg:grid-cols-3">
@@ -83,6 +89,8 @@ export default async function RecipientsPage({
           <option value="">전체 상태</option>
           <option value="subscribed">구독</option>
           <option value="unsubscribed">수신거부</option>
+          <option value="bounced">반송</option>
+          <option value="complained">스팸신고</option>
         </select>
         <select name="group" defaultValue={group ?? ""} className="input w-auto">
           <option value="">전체 그룹</option>

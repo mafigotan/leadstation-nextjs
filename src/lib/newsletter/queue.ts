@@ -195,6 +195,8 @@ export async function processCampaign(supabase: SupabaseClient, campaignId: stri
           fromName: c.from_name,
           replyTo: c.reply_to || undefined,
           unsubscribeUrl: r.unsub_token ? `${siteUrl()}/api/unsubscribe/${r.unsub_token}` : undefined,
+          // Lets the SendGrid Event Webhook find this log and recipient (src/app/api/webhooks/sendgrid).
+          customArgs: { ls_log: String(r.id), ls_cmp: campaignId, ...(r.recipient_id ? { ls_rcpt: String(r.recipient_id) } : {}) },
         };
       }),
     ).catch((e: Error) => batch.map(() => e.message));
@@ -202,7 +204,8 @@ export async function processCampaign(supabase: SupabaseClient, campaignId: stri
     const now = new Date().toISOString();
     const sentIds = batch.filter((_, i) => !errors[i]).map((r) => r.id);
     if (sentIds.length) {
-      await supabase.from("send_logs").update({ status: "sent", sent_at: now }).in("id", sentIds);
+      // Only rows still queued: a bounce from the webhook may already have marked one failed.
+      await supabase.from("send_logs").update({ status: "sent", sent_at: now }).in("id", sentIds).eq("status", "queued");
       const recipientIds = batch.filter((_, i) => !errors[i]).map((r) => r.recipient_id).filter(Boolean);
       if (recipientIds.length) await supabase.from("recipients").update({ last_sent_at: now }).in("id", recipientIds);
     }
