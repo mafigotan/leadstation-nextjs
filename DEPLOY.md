@@ -66,7 +66,7 @@ Preview 의 NEXT_PUBLIC_SITE_URL 과 staging Supabase 의 URL 설정을 그 주�
 1. DB: `supabase/migrations/0020_email_events.sql` 실행 (staging 먼저).
 2. SendGrid → Settings → Mail Settings → **Event Webhooks** → Create new webhook
    - Post URL: `<사이트 주소>/api/webhooks/sendgrid`
-     (staging: `https://leadstation-nextjs-git-staging-neomc-017a2f24.vercel.app/api/webhooks/sendgrid`, 운영: `https://leadstation.kr/api/webhooks/sendgrid`)
+     (staging: `https://leadstation-nextjs-staging.minsoo-3a8.workers.dev/api/webhooks/sendgrid`, 운영: `https://leadstation.kr/api/webhooks/sendgrid`)
    - Actions: Delivered, Bounced, Dropped, Spam Reports, Unsubscribes, Group Unsubscribes 체크
    - **Signed Event Webhook** 켜기 → 저장 후 보이는 Verification Key 복사
 3. 환경 변수 `SENDGRID_WEBHOOK_PUBLIC_KEY` 에 그 Verification Key 를 넣는다 (Secret). 없으면 웹훅이 503 으로 거절된다.
