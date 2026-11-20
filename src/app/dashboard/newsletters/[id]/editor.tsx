@@ -85,6 +85,10 @@ export function NewsletterEditor({
     startTransition(async () => {
       try {
         await fn();
+      } catch (e) {
+        // A server action that fails (timeout, deploy in progress, ...) shows a message instead of crashing the page.
+        console.error(e);
+        setStatus({ kind: "error", text: "요청을 처리하지 못했어요. 잠시 뒤 다시 시도해 주세요." });
       } finally {
         setBusy(null);
       }

@@ -72,8 +72,13 @@ export function ApplicantMailSettings({ s, update, site, pageId, pageTitle }: { 
   const test = () =>
     start(async () => {
       setMsg(null);
-      const r = await sendApplicantMailTest(pageId, mail, fields);
-      setMsg(r.error ? { ok: false, text: r.error } : { ok: true, text: r.ok ?? "보냈어요." });
+      try {
+        const r = await sendApplicantMailTest(pageId, mail, fields);
+        setMsg(r.error ? { ok: false, text: r.error } : { ok: true, text: r.ok ?? "보냈어요." });
+      } catch (e) {
+        console.error(e);
+        setMsg({ ok: false, text: "테스트 메일을 보내지 못했어요. 잠시 뒤 다시 시도해 주세요." });
+      }
     });
 
   return (
