@@ -79,13 +79,21 @@ export async function submitContact(_: ContactState, formData: FormData): Promis
   try {
     const { superAdminEmails } = await import("@/lib/admin-notify");
     const { mailProvider, sendOne } = await import("@/lib/newsletter/mailer");
-    const { inquiryEmail } = await import("@/lib/contact-mail");
+    const { inquiryEmail, inquiryReceiptEmail } = await import("@/lib/contact-mail");
     if (mailProvider() && process.env.MAIL_FROM_ADDRESS) {
       const to = await superAdminEmails();
       const { subject, html } = inquiryEmail(v);
       const results = await Promise.allSettled(to.map((addr) => sendOne({ to: addr, subject, html, fromName: "LEADstation", replyTo: v.email })));
       mailed = results.some((r) => r.status === "fulfilled");
       for (const r of results) if (r.status === "rejected") console.error("contact inquiry email failed", r.reason);
+      // Receipt to the visitor; a failure here does not fail the inquiry.
+      try {
+        const { COMPANY } = await import("@/components/marketing/chrome");
+        const receipt = inquiryReceiptEmail(v, COMPANY);
+        await sendOne({ to: v.email, subject: receipt.subject, html: receipt.html, fromName: "리드스테이션", replyTo: COMPANY.email });
+      } catch (e) {
+        console.error("contact inquiry receipt email failed", e);
+      }
       if (!to.length) console.warn("contact inquiry: no super admin email (set SUPABASE_SERVICE_ROLE_KEY or ADMIN_NOTIFY_EMAIL)");
     } else {
       console.warn("contact inquiry: mail is not configured");

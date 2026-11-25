@@ -27,3 +27,19 @@ export function inquiryEmail(q: Inquiry) {
     html: layout({ preheader: `${q.name} · ${q.message.slice(0, 60)}`, header, body, footer }),
   };
 }
+
+/** Receipt to the visitor: the inquiry arrived and we will reply within 24 hours. */
+export function inquiryReceiptEmail(q: Inquiry, company: { name: string; phone: string; email: string; address: string }) {
+  const header = `<div style="font-size:20px;font-weight:700;color:#0f172a;letter-spacing:-0.01em">LEAD<span style="color:${BRAND}">station</span> <span style="font-size:12px;font-weight:400;color:#64748b">리드스테이션</span></div>`;
+  const body = `
+    <h1 style="margin:4px 0 10px;font-size:20px;line-height:1.4;color:#0f172a">${esc(q.name)}님, 문의가 잘 접수되었습니다.</h1>
+    <p style="margin:0 0 22px;font-size:15px;line-height:1.75;color:#334155">리드스테이션에 관심 가져 주셔서 감사합니다.<br>담당자가 내용을 확인하고 <b style="color:${BRAND}">24시간 이내에</b> 남겨 주신 연락처로 연락드리겠습니다.</p>
+    <p style="margin:0 0 10px;font-size:13px;font-weight:700;color:${BRAND}">접수 내용</p>
+    ${table(row("이름", esc(q.name)) + row("이메일", esc(q.email)) + row("전화번호", esc(q.phone)) + row("문의내용", multiline(q.message)))}
+    <p style="margin:20px 0 0;font-size:13px;line-height:1.7;color:#64748b">접수 일시: ${kstTime()}<br>급하신 경우 대표전화 ${esc(company.phone)}로 연락 주세요. 이 메일에 답장하셔도 담당자에게 전달됩니다.</p>`;
+  const footer = `<p style="margin:0;font-size:12px;line-height:1.6;color:#94a3b8">${esc(company.name)} · ${esc(company.address)}<br>대표전화 ${esc(company.phone)} · ${esc(company.email)}</p>`;
+  return {
+    subject: "[리드스테이션] 문의가 접수되었습니다",
+    html: layout({ preheader: "담당자가 24시간 이내에 연락드리겠습니다.", header, body, footer }),
+  };
+}
