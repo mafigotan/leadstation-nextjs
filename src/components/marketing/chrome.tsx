@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ContactOpenButton, ContactWidget } from "@/components/marketing/contact";
 
 // Shared pieces of the public service pages (leadstation.kr, /features, /pricing, /guide).
 
@@ -14,7 +15,6 @@ const NAV = [
   { href: "/features", label: "핵심 기능" },
   { href: "/pricing", label: "요금제" },
   { href: "/guide", label: "이용 매뉴얼" },
-  { href: "/pricing#contact", label: "도입 문의" },
 ];
 
 export function Logo() {
@@ -43,6 +43,7 @@ export function MarketingHeader({ active }: { active?: string }) {
               {n.label}
             </Link>
           ))}
+          <ContactOpenButton className="whitespace-nowrap text-slate-700 hover:text-slate-900">도입 문의</ContactOpenButton>
         </nav>
         <div className="flex items-center gap-2">
           <Link href="/login" className="btn-secondary hidden sm:inline-flex">로그인</Link>
@@ -93,6 +94,7 @@ export function MarketingShell({ active, children }: { active?: string; children
       <MarketingHeader active={active} />
       <main className="flex-1">{children}</main>
       <MarketingFooter />
+      <ContactWidget />
     </div>
   );
 }

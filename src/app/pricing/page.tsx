@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { COMPANY, MarketingShell, SectionTitle } from "@/components/marketing/chrome";
 import { PlanCards, PlanTable } from "@/components/marketing/plans";
+import { ContactOpenButton } from "@/components/marketing/contact";
 import { IMAGE_TOKENS } from "@/lib/plans";
 
 // Plan values are read from the database on each request.
@@ -98,11 +99,11 @@ export default function PricingPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <a href={`tel:${COMPANY.phone.replaceAll("-", "")}`} className="inline-flex items-center rounded-lg bg-white px-5 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100">
+            <ContactOpenButton className="inline-flex items-center rounded-lg bg-white px-5 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100">
+              문의하기
+            </ContactOpenButton>
+            <a href={`tel:${COMPANY.phone.replaceAll("-", "")}`} className="inline-flex items-center rounded-lg border border-white/40 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10">
               전화 문의
-            </a>
-            <a href={`mailto:${COMPANY.email}?subject=${encodeURIComponent("[리드스테이션] 요금제 문의")}`} className="inline-flex items-center rounded-lg border border-white/40 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10">
-              이메일 문의
             </a>
           </div>
         </div>
