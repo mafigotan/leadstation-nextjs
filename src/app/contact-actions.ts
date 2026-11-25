@@ -3,18 +3,20 @@
 import { headers } from "next/headers";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { emailError, formatPhone, phoneError } from "@/lib/contact-validate";
 
 // "문의하기" modal on the public service pages: saves the inquiry and emails every super admin.
 
 const schema = z.object({
   name: z.string().trim().min(1, "이름을 입력해 주세요.").max(100, "이름이 너무 길어요."),
-  email: z.string().trim().min(1, "이메일을 입력해 주세요.").pipe(z.email("올바른 이메일을 입력해 주세요.").max(200)),
-  phone: z
-    .string()
-    .trim()
-    .min(1, "전화번호를 입력해 주세요.")
-    .max(50, "전화번호가 너무 길어요.")
-    .regex(/^[0-9+\-\s().]{7,}$/, "전화번호를 확인해 주세요."),
+  email: z.string().trim().superRefine((v, ctx) => {
+    const e = emailError(v);
+    if (e) ctx.addIssue({ code: "custom", message: e });
+  }),
+  phone: z.string().transform(formatPhone).superRefine((v, ctx) => {
+    const e = phoneError(v);
+    if (e) ctx.addIssue({ code: "custom", message: e });
+  }),
   message: z.string().trim().min(1, "문의내용을 입력해 주세요.").max(3000, "문의내용은 3,000자까지 쓸 수 있어요."),
   agree: z.literal("on", "개인정보 수집·이용에 동의해 주세요."),
   page: z.string().max(200).optional().default(""),

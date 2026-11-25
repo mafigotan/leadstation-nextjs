@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { submitContact, type ContactField, type ContactState } from "@/app/contact-actions";
+import { emailError, formatPhone, phoneError } from "@/lib/contact-validate";
 
 // "문의하기" on the public service pages: a floating tab on the right edge and a modal form.
 // Any <ContactOpenButton> (header menu, pricing contact band) opens the same modal.
@@ -77,6 +78,20 @@ function ContactModal({ onClose, onDone }: { onClose: () => void; onDone: () => 
   const dialog = useRef<HTMLDivElement>(null);
   const first = useRef<HTMLInputElement>(null);
   const [showTerms, setShowTerms] = useState(false);
+  // Checks as you type: an email/phone error shows once the field is left, then updates live until fixed.
+  const [live, setLive] = useState<Partial<Record<"email" | "phone", string>>>({});
+  const [touched, setTouched] = useState<Partial<Record<"email" | "phone", boolean>>>({});
+  const [phone, setPhone] = useState(state.values?.phone ?? "");
+  useEffect(() => {
+    // A failed submit brings back what was typed; take the server's phone value.
+    if (state.values) setPhone(formatPhone(state.values.phone));
+    setTouched({});
+    setLive({});
+  }, [state]);
+  const check = (k: "email" | "phone", v: string, force = false) => {
+    if (!force && !touched[k]) return;
+    setLive((l) => ({ ...l, [k]: k === "email" ? emailError(v) : phoneError(v) }));
+  };
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -100,7 +115,7 @@ function ContactModal({ onClose, onDone }: { onClose: () => void; onDone: () => 
     };
   }, [onClose]);
 
-  const err = (k: ContactField) => state.fieldErrors?.[k];
+  const err = (k: ContactField) => ((k === "email" || k === "phone") && touched[k] ? live[k] : state.fieldErrors?.[k]);
   const input = (k: ContactField) =>
     `block w-full rounded-lg border px-3 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 ${
       err(k) ? "border-rose-400 focus:ring-rose-200" : "border-slate-300 focus:border-indigo-500 focus:ring-indigo-100"
@@ -153,12 +168,12 @@ function ContactModal({ onClose, onDone }: { onClose: () => void; onDone: () => 
               </div>
               <div>
                 <label htmlFor="contact-email" className={label}>이메일 <span className="text-rose-600">*</span></label>
-                <input id="contact-email" name="email" defaultValue={state.values?.email} type="email" autoComplete="email" placeholder="name@company.com" maxLength={200} required aria-invalid={!!err("email")} aria-describedby={err("email") ? "contact-email-err" : undefined} className={input("email")} />
+                <input id="contact-email" name="email" defaultValue={state.values?.email} onBlur={(e) => { setTouched((t) => ({ ...t, email: true })); check("email", e.target.value, true); }} onChange={(e) => check("email", e.target.value)} type="email" autoComplete="email" placeholder="name@company.com" maxLength={200} required aria-invalid={!!err("email")} aria-describedby={err("email") ? "contact-email-err" : undefined} className={input("email")} />
                 <Err k="email" />
               </div>
               <div>
                 <label htmlFor="contact-phone" className={label}>전화번호 <span className="text-rose-600">*</span></label>
-                <input id="contact-phone" name="phone" defaultValue={state.values?.phone} type="tel" inputMode="tel" autoComplete="tel" placeholder="010-0000-0000" maxLength={50} required aria-invalid={!!err("phone")} aria-describedby={err("phone") ? "contact-phone-err" : undefined} className={input("phone")} />
+                <input id="contact-phone" name="phone" value={phone} onChange={(e) => { const f = formatPhone(e.target.value); setPhone(f); check("phone", f); }} onBlur={(e) => { setTouched((t) => ({ ...t, phone: true })); check("phone", e.target.value, true); }} type="tel" inputMode="tel" autoComplete="tel" placeholder="010-1234-5678" maxLength={13} required aria-invalid={!!err("phone")} aria-describedby={err("phone") ? "contact-phone-err" : undefined} className={input("phone")} />
                 <Err k="phone" />
               </div>
               <div>
