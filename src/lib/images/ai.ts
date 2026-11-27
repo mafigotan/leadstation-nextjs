@@ -42,6 +42,11 @@ export async function generateImage(description: string, style: ImageStyle | "",
   if (status !== 200 && preferred !== "gpt-image-1" && (status === 404 || json.error?.code === "model_not_found" || /model/i.test(detail))) {
     ({ status, json } = await request("gpt-image-1", prompt, size));
   }
+  return cropToRatio(imageBytes(status, json), rw, rh);
+}
+
+/** Turns an OpenAI image response into JPEG bytes, or throws a message the user can act on. */
+function imageBytes(status: number, json: ImageResponse) {
   if (status !== 200) {
     const msg = json.error?.message ?? `HTTP ${status}`;
     if (/verif/i.test(msg)) throw new Error("OpenAI 조직 인증이 필요해요. platform.openai.com > Settings > Organization에서 Verify Organization을 마친 뒤 다시 시도해 주세요.");
@@ -52,7 +57,71 @@ export async function generateImage(description: string, style: ImageStyle | "",
   }
   const b64 = json.data?.[0]?.b64_json;
   if (!b64) throw new Error("이미지 AI가 이미지를 돌려주지 않았어요. 다시 시도해 주세요.");
-  return cropToRatio(Buffer.from(b64, "base64"), rw, rh);
+  return Buffer.from(b64, "base64");
+}
+
+type ImageResponse = { data?: { b64_json?: string }[]; error?: { message?: string; code?: string } };
+
+async function requestEdit(model: string, image: Blob, prompt: string, size: string, fidelity: boolean) {
+  const form = new FormData();
+  form.append("model", model);
+  form.append("image", image, image.type === "image/png" ? "source.png" : image.type === "image/webp" ? "source.webp" : "source.jpg");
+  form.append("prompt", prompt);
+  form.append("n", "1");
+  form.append("size", size);
+  form.append("quality", "medium");
+  form.append("output_format", "jpeg");
+  if (fidelity) form.append("input_fidelity", "high");
+  const res = await fetch("https://api.openai.com/v1/images/edits", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+    body: form,
+  });
+  const json = (await res.json().catch(() => ({}))) as ImageResponse;
+  if (res.status === 200) addUsage("image", IMAGE_TOKENS);
+  return { status: res.status, json };
+}
+
+/**
+ * Edits an existing image with an instruction (image-to-image, not a new picture):
+ * the model gets the source image and is told to change only what the instruction asks.
+ * The result is cropped back to the source's shape (width x height when known).
+ */
+export async function editImage(source: Blob, instruction: string, width: number | null, height: number | null) {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("AI 이미지 설정이 없어요. 환경 변수에 OPENAI_API_KEY를 넣고 다시 배포해 주세요.");
+  }
+  const ask = instruction.trim().slice(0, 2000);
+  if (!ask) throw new Error("어떻게 고칠지 적어 주세요.");
+  if (source.size > 20 * 1024 * 1024) throw new Error("20MB 이하 이미지만 수정할 수 있어요.");
+  const w = width && width > 0 ? width : 0;
+  const h = height && height > 0 ? height : 0;
+  const ratio = w && h ? w / h : 1;
+  const size = Math.abs(ratio - 1) < 0.15 ? "1024x1024" : ratio > 1 ? "1536x1024" : "1024x1536";
+  const prompt = [
+    "Edit the provided image. This is a modification of the existing image, not a new picture.",
+    "Keep the same composition, framing, subjects, style, colors and lighting, and change only what the instruction below asks for.",
+    `Instruction: ${ask}`,
+    "Do not add text, letters, logos or watermarks unless the instruction asks for them. Do not depict real people or trademarks.",
+  ].join("\n");
+
+  const preferred = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
+  let model = preferred;
+  let fidelity = true;
+  let { status, json } = await requestEdit(model, source, prompt, size, fidelity);
+  for (let i = 0; i < 2 && status !== 200; i++) {
+    const detail = json.error?.message ?? "";
+    if (fidelity && /input_fidelity/i.test(detail)) fidelity = false;
+    else if (model !== "gpt-image-1" && (status === 404 || json.error?.code === "model_not_found" || /model/i.test(detail))) model = "gpt-image-1";
+    else break;
+    ({ status, json } = await requestEdit(model, source, prompt, size, fidelity));
+  }
+  const bytes = imageBytes(status, json);
+  if (!w || !h) {
+    const img = jpeg.decode(bytes, { useTArray: true, maxResolutionInMP: 40, maxMemoryUsageInMB: 256 });
+    return { bytes, width: img.width, height: img.height };
+  }
+  return cropToRatio(bytes, w, h);
 }
 
 /**

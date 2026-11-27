@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { IMAGE_RATIOS, IMAGE_STYLES, type ImageRatio } from "@/lib/images/options";
 import { checkUploadRoom, generateAiImage, recordUpload } from "@/app/dashboard/media/actions";
 import { MediaPicker } from "./media-picker";
+import { AiImageEditor, draftVersion, type ImageVersion } from "./ai-image-editor";
 
 const STYLE_KEY = "ls-ai-image-style";
 
@@ -15,16 +16,23 @@ export function RatioShape({ ratio }: { ratio: ImageRatio }) {
   return <span className="inline-block rounded-[2px] border-[1.5px] border-current" style={{ width: Math.max(5, w * scale), height: Math.max(5, h * scale) }} />;
 }
 
-/** Style and ratio pickers plus the description box. Used by the image field and the library page. */
+/**
+ * Style and ratio pickers plus the description box. Used by the image field and the library page.
+ * A generated image is a draft: the user can edit it with instructions as often as they like,
+ * and only the image they put in the draft (or save) is added to the library.
+ */
 export function AiImageForm({
   initialText = "",
   initialRatio = "1:1",
+  doneLabel = "초안에 반영",
   onDone,
 }: {
   initialText?: string;
   initialRatio?: ImageRatio;
+  doneLabel?: string;
   onDone: (url: string) => void;
 }) {
+  const [versions, setVersions] = useState<ImageVersion[]>([]);
   const [text, setText] = useState(initialText);
   const [style, setStyle] = useState<string>(() => {
     try {
@@ -43,10 +51,10 @@ export function AiImageForm({
     try {
       localStorage.setItem(STYLE_KEY, style);
     } catch {}
-    const res = await generateAiImage(text, style, ratio);
+    const res = await generateAiImage(text, style, ratio).catch(() => ({ error: "이미지를 만들지 못했어요.", draft: undefined }));
     setBusy(false);
-    if (res.error) return setError(res.error);
-    if (res.url) onDone(res.url);
+    if (res.error || !res.draft) return setError(res.error ?? "이미지를 만들지 못했어요.");
+    setVersions((v) => [...v, draftVersion(res.draft!, text.trim(), style, ratio)]);
   }
 
   return (
@@ -90,11 +98,14 @@ export function AiImageForm({
       </div>
       <div className="flex items-center gap-3">
         <button type="button" onClick={generate} disabled={busy || !text.trim()} className="btn-primary">
-          {busy ? "그리는 중… (최대 1분)" : "✦ 이미지 만들기"}
+          {busy ? "그리는 중… (최대 1분)" : versions.length ? "✦ 새로 만들기" : "✦ 이미지 만들기"}
         </button>
-        <span className="text-xs text-slate-500">만든 이미지는 이미지 라이브러리에도 저장돼요.</span>
+        <span className="text-xs text-slate-500">만든 뒤 수정 지시로 고칠 수 있고, &lsquo;{doneLabel}&rsquo;할 때 이미지 라이브러리에 저장돼요.</span>
       </div>
       {error && <p className="text-xs text-red-600">{error}</p>}
+      {versions.length > 0 && (
+        <AiImageEditor versions={versions} setVersions={setVersions} style={style} ratio={ratio} doneLabel={doneLabel} onDone={onDone} />
+      )}
     </div>
   );
 }
@@ -242,7 +253,9 @@ export function ImageMenu({
   alt?: string;
   onAlt?: (v: string) => void;
 }) {
-  const [panel, setPanel] = useState<"" | "ai" | "library" | "url">(value ? "" : "ai");
+  const [panel, setPanel] = useState<"" | "ai" | "edit" | "library" | "url">(value ? "" : "ai");
+  const [editVersions, setEditVersions] = useState<ImageVersion[]>([]);
+  const editable = value.includes("/storage/v1/object/public/newsletter-images/");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -270,6 +283,18 @@ export function ImageMenu({
         )}
         <button type="button" className={btn(panel === "library")} onClick={() => setPanel(panel === "library" ? "" : "library")}>🖼 라이브러리에서 찾기</button>
         <button type="button" className={`${btn(panel === "ai")} text-violet-700`} onClick={() => setPanel(panel === "ai" ? "" : "ai")}>✦ AI로 생성</button>
+        {editable && (
+          <button
+            type="button"
+            className={`${btn(panel === "edit")} text-violet-700`}
+            onClick={() => {
+              setEditVersions([{ url: value, width: null, height: null, prompt: "" }]);
+              setPanel(panel === "edit" ? "" : "edit");
+            }}
+          >
+            ✎ AI로 수정
+          </button>
+        )}
         <button type="button" className={btn(false)} disabled={uploading} onClick={() => fileRef.current?.click()}>{uploading ? "올리는 중…" : "⬆ 업로드"}</button>
         <button type="button" className={btn(panel === "url")} onClick={() => setPanel(panel === "url" ? "" : "url")}>🔗 주소</button>
         {onMove && (
@@ -286,6 +311,18 @@ export function ImageMenu({
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
       </div>
       {panel === "ai" && <AiImageForm initialText={context} initialRatio={ratio} onDone={(url) => { onChange(url); setPanel(""); }} />}
+      {panel === "edit" && editVersions.length > 0 && (
+        <AiImageEditor
+          versions={editVersions}
+          setVersions={setEditVersions}
+          allowOriginal={false}
+          onDone={(url) => {
+            onChange(url);
+            setPanel("");
+          }}
+          onCancel={() => setPanel("")}
+        />
+      )}
       {panel === "library" && <MediaPicker onPick={(url) => { onChange(url); setPanel(""); }} onClose={() => setPanel("")} />}
       {panel === "url" && <input className="input" value={value} placeholder="https://" onChange={(e) => onChange(e.target.value.trim())} />}
       {onAlt && <input className="input" value={alt ?? ""} onChange={(e) => onAlt(e.target.value)} placeholder="이미지 설명 (alt 텍스트, 검색과 접근성에 쓰여요)" />}
