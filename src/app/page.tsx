@@ -14,10 +14,10 @@ export const metadata: Metadata = {
 };
 
 const PROMO_STEPS = [
-  { title: "프로모션 기획", desc: "목표와 대상을 알려주면 AI가 기간, 혜택, 참여 방법을 담은 기획안을 제안합니다." },
-  { title: "이벤트 게임", desc: "룰렛, 캡슐 뽑기, 슬롯머신, 카드 짝 맞추기 같은 간단한 게임을 AI가 만들어 페이지에 넣습니다." },
+  { title: "프로모션 페이지", desc: "프로모션 목표와 대상을 알려주면 AI가 적절한 내용의 프로모션 페이지 초안을 생성합니다." },
+  { title: "이벤트 게임", desc: "룰렛, 캡슐 뽑기, 카드 짝 맞추기 등등 미리 제작된 10여 종의 이벤트 도구를, AI를 통해 쉽게 변형하여 프로모션 페이지에 적용할 수 있습니다." },
   { title: "신청폼 구성", desc: "프로모션 목적에 맞는 신청 항목과 개인정보 수집 동의를 AI가 알아서 구성합니다." },
-  { title: "프로모션 내용과 페이지", desc: "제목, 소개 문구, 이미지까지 AI가 채운 프로모션 페이지가 내 사이트에 바로 열립니다." },
+  { title: "리드 수집과 관리", desc: "프로모션을 통해 수집된 리드를 대시보드에서 쉽게 관리할 수 있고 참여 유저들은 바로 뉴스레터 수신자로 설정됩니다." },
 ];
 
 const AI_FEATURES = [
@@ -56,17 +56,17 @@ export default function Home() {
             <h1 className="mt-3 text-4xl font-bold leading-tight tracking-tight text-slate-900 sm:text-5xl">
               온라인 마케팅의 모든 과정,
               <br />
-              이제 AI에게 말하면 됩니다
+              이제 AI에게 지시하세요.
             </h1>
             <p className="mt-6 text-lg leading-relaxed text-slate-600">
-              프로모션 기획, 이벤트 게임, 신청폼, 페이지 내용까지 AI가 한 번에 만들어 드립니다. 모은 리드에게 보낼 뉴스레터와 사이트에 올릴 글도 AI가
+              프로모션 기획, 이벤트 게임, 신청폼, 페이지 내용까지 AI가 한 번에 만들어 드립니다. 그렇게 확보한 잠재 고객에게 보낼 뉴스레터와 사이트에 올릴 글도 AI가
               쓰고, 발송과 게시까지 리드스테이션 한 곳에서 끝납니다.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/login" className="btn-primary px-6 py-3 text-base">30일 무료로 시작하기</Link>
               <a href="#ai-promo" className="btn-secondary px-6 py-3 text-base">AI 프로모션 생성 보기</a>
             </div>
-            <p className="mt-3 text-sm text-slate-500">카드 등록 없이 FREE 플랜으로 30일간 사용할 수 있어요.</p>
+            <p className="mt-3 text-sm text-slate-500">FREE 플랜으로 30일간 무료로 사용해 보세요.</p>
           </div>
           <div className="min-w-0 flex-1 basis-[30rem] space-y-3 rounded-2xl border border-indigo-100 bg-white/70 p-5 shadow-sm">
             <Prompt>&ldquo;신제품 출시 기념으로 3주 동안 룰렛 이벤트를 열고, 사전 신청자를 모으고 싶어요.&rdquo;</Prompt>
@@ -96,7 +96,7 @@ export default function Home() {
         <div className="mx-auto max-w-6xl px-4">
           <SectionTitle
             eyebrow="AI 프로모션 생성"
-            title="한 문장이면 프로모션이 완성됩니다"
+            title="한 문장만 입력해도 AI가 프로모션 페이지를 만들어 줍니다."
             desc="기획서, 디자인, 게임 개발, 폼 도구가 따로 필요 없습니다. 무엇을 하고 싶은지 말하면 AI가 프로모션의 전 과정을 만들어 드리고, 고칠 곳만 다듬으면 바로 게시할 수 있어요."
           />
           <ol className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -136,7 +136,7 @@ export default function Home() {
         <div className="mx-auto max-w-6xl px-4">
           <SectionTitle
             eyebrow="하나로 이어지는 마케팅"
-            title="모으고, 쓰고, 보내고. 다시 모입니다"
+            title="선순환으로 이어지는 마케팅"
             desc="프로모션으로 모은 리드가 뉴스레터와 글을 통해 다시 다음 프로모션으로 이어지는 흐름을 AI와 함께 반복합니다."
           />
           <ol className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -162,7 +162,7 @@ export default function Home() {
             <div className="rounded-xl border-2 border-indigo-600 bg-white p-6">
               <div className="font-semibold text-indigo-600">리드스테이션에서는</div>
               <p className="mt-2 leading-relaxed text-slate-700">
-                AI에게 요청하고, 결과를 확인하고, 게시하거나 보내면 됩니다. 모든 데이터는 내 관리 화면 한 곳에 남습니다.
+                프로모션 및 마케팅의 전 과정이 AI Powered Marketing Platform인 리드스테이션 한 곳에서 이루어집니다.
               </p>
             </div>
           </div>
@@ -207,12 +207,12 @@ export default function Home() {
 
       {/* How to start */}
       <section className="mx-auto max-w-6xl px-4 pt-20">
-        <SectionTitle eyebrow="시작하는 방법" title="가입하고 첫 프로모션을 AI에게 맡겨 보세요" />
+        <SectionTitle eyebrow="시작하는 방법" title="FREE 요금제로 가입해서 한 달간 무료로 이용해보세요." />
         <ol className="mt-10 grid gap-5 md:grid-cols-3">
           {[
             ["회원가입과 사이트 주소", "회사 이름으로 주소를 정하면 FREE 30일이 바로 시작됩니다."],
             ["AI에게 프로모션 요청", "하고 싶은 프로모션을 한 문장으로 적으면 AI가 전부 만들어 줍니다."],
-            ["리드에게 뉴스레터 발송", "모인 리드에게 AI가 쓴 뉴스레터를 보내 관계를 이어갑니다."],
+            ["잠재 고객에게 뉴스레터 발송", "AI를 통해 간편하게 뉴스레터를 만들어서 확보한 잠재 고객에게 보내보세요."],
           ].map(([t, d], i) => (
             <li key={t} className="card p-6">
               <div className="text-3xl font-bold text-indigo-200">{i + 1}</div>
