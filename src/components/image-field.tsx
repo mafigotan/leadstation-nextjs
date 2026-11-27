@@ -100,7 +100,7 @@ export function AiImageForm({
         <button type="button" onClick={generate} disabled={busy || !text.trim()} className="btn-primary">
           {busy ? "그리는 중… (최대 1분)" : versions.length ? "✦ 새로 만들기" : "✦ 이미지 만들기"}
         </button>
-        <span className="text-xs text-slate-500">만든 뒤 수정 지시로 고칠 수 있고, &lsquo;{doneLabel}&rsquo;할 때 이미지 라이브러리에 저장돼요.</span>
+        <span className="text-xs text-slate-500">만든 뒤 수정 지시로 고칠 수 있고, &lsquo;{doneLabel}&rsquo;할 때 이미지 라이브러리에 저장돼요. 만들기와 수정은 한 번마다 AI 사용량이 차감돼요.</span>
       </div>
       {error && <p className="text-xs text-red-600">{error}</p>}
       {versions.length > 0 && (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { IMAGE_TOKENS } from "@/lib/plans";
 import { discardAiDrafts, editAiImage, saveAiImage, type AiDraft } from "@/app/dashboard/media/actions";
 
 /** One image in an editing session: the first one or a result of an edit. */
@@ -51,6 +52,7 @@ export function AiImageEditor({
   const [instruction, setInstruction] = useState("");
   const [busy, setBusy] = useState<"" | "edit" | "save">("");
   const [error, setError] = useState("");
+  const [edits, setEdits] = useState(0);
   const count = useRef(versions.length);
 
   // A new image was added (generated again or edited): show it.
@@ -91,6 +93,7 @@ export function AiImageEditor({
     const next = draftVersion(res.draft, `${current.prompt}${current.prompt ? "\n" : ""}수정: ${ask}`.trim(), current.style, current.ratio);
     setVersions((v) => [...v, next]);
     setInstruction("");
+    setEdits((n) => n + 1);
   }
 
   async function done() {
@@ -167,6 +170,10 @@ export function AiImageEditor({
             disabled={!!busy}
           />
           <p className="mt-1 text-[11px] text-slate-500">지금 보이는 이미지를 바탕으로 말한 부분만 고쳐요. 마음에 들 때까지 몇 번이든 고칠 수 있어요.</p>
+          <p className="mt-1.5 rounded-md bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
+            ⚠ &lsquo;수정하기&rsquo;를 누를 때마다 이미지를 새로 만드는 것과 같은 AI 사용량({IMAGE_TOKENS.toLocaleString("ko-KR")} 토큰)이 차감돼요.
+            {edits > 0 && ` 이번에 ${edits}번 수정해서 ${(edits * IMAGE_TOKENS).toLocaleString("ko-KR")} 토큰을 썼어요.`}
+          </p>
         </div>
       ) : (
         <p className="text-xs text-slate-500">외부 주소의 이미지는 AI로 수정할 수 없어요. 라이브러리에 올린 뒤 수정해 주세요.</p>
